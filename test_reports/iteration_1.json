@@ -1,0 +1,38 @@
+{
+  "summary": "Frontend-only responsive testing of 'THE INTERNET'S BILLBOARD' 3D hero (Phase 1, no backend). Tested mobile 390x844, 393x852, 430x932 and desktop 1440x900 via Playwright on the public preview URL. Core mobile fix works: hero copy now sits in a reserved upper band (bottom edge at y=302 on 390x844, 303 on 393x852, 311 on 430x932) with clear vertical separation from the 3D billboard panels which render from ~y=320 downward. Compact mobile navbar (THE BOARD brand + LIVE 17/30 CLAIMED + hamburger) is correct, desktop nav is hidden on mobile, the hamburger drawer opens with all 4 nav items + GET YOUR SPOT CTA and closes on item tap, and the compact bottom camera dock (ORBIT/CINEMATIC/ZOOM/RESET) is fully tappable at the bottom without covering the billboard. Desktop 1440x900 shows NO regression: full horizontal nav visible, hero copy left-aligned at x=80, billboard centered, camera dock centered at bottom (x=483,w=474), no mobile drawer. ENTER BOARD CAM works on both breakpoints (ORBIT becomes selected). Three real defects found: the foreground car is never actually visible, the billboard climbs into the hero copy zone after entering ORBIT mode on mobile, and the hero-3d-canvas test hook has zero height.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "HeroScene.jsx Car()/SceneCamera()", "issue": "Requirement 'car remains visible as a foreground silhouette' FAILS. On mobile (camera [0,3.5,17] with lookAt(0,6.4,-32), fov 45) the car at z=6 falls below the frustum - a 3.2x brightness-boosted crop of the lower 364px shows only the red pointLight glow, no car body or taillights. On desktop the cinematic camera ends at z=1.5, which is BEHIND the car at z=8, so the car is also invisible there (pre-existing, not a new regression). Net effect: the whole <Car> mesh is dead geometry.", "selector": "[data-testid='hero-3d-canvas']", "priority": "HIGH"},
+      {"component": "Mobile ORBIT / ENTER BOARD CAM state", "issue": "After tapping ENTER BOARD CAM on 390x844 the OrbitControls target [0,8.5,-29] with minDistance 8 pulls the camera in and the billboard panel grid rises to ~y=230-450, overlapping hero-subtitle, hero-meta and the ENTER BOARD CAM button (text sits directly on top of the panels, low legibility). The no-overlap guarantee therefore only holds in the initial CINEMATIC state, not after the primary CTA is used.", "selector": "[data-testid='board-cam-button'] / [data-testid='hero-copy']", "priority": "MEDIUM"},
+      {"component": "R3F Canvas wrapper", "issue": "data-testid='hero-3d-canvas' is attached to the R3F wrapper DIV whose inline 'position: relative; height: 100%' overrides the .board-app > div:first-child fixed rule, so its computed height is 0px and getBoundingClientRect() returns height 0 -> Playwright is_visible() is False even though the real <canvas> (fixed, 390x844) renders. Any automated visibility assertion on the 3D canvas will fail. Move the testid to the canvas (Canvas gl/onCreated or a wrapping element with real size).", "selector": "[data-testid='hero-3d-canvas']", "priority": "MEDIUM"},
+      {"component": "menu-button (desktop)", "issue": "Hamburger is still rendered/visible at 1440x900 (top-right) and toggles state, but the drawer only renders when isMobile, so clicking it does nothing - a dead control on desktop.", "selector": "[data-testid='menu-button']", "priority": "LOW"},
+      {"component": "zoom-control", "issue": "ZOOM button has no onClick handler on either breakpoint; it takes the hover/selected border styling but performs no camera action (dead button).", "selector": "[data-testid='zoom-control']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Mobile hero 390x844", "issues": ["Large dead zone between the billboard base (~y=540) and the camera dock (y=788): ~250px of empty dark road with no focal element, made worse by the missing car silhouette.", "Hero copy block ends at y=302 and billboard starts ~y=320 - separation is only ~18px, so any font/locale growth will re-introduce overlap; consider a hard min-gap or clamping the hero block height."]},
+      {"screen": "Desktop 1440x900", "issues": ["No regressions observed; nav, hero, centered billboard, scene-note, scroll-cue and centered dock all match the intended composition."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Make the car actually visible on mobile (raise/pull the mobile camera lookAt or move the car nearer/lower, e.g. car z ~ 11-12 and lookAt y ~ 5.5) and re-check the desktop cinematic end pose (camera z=1.5 is past the car at z=8).",
+    "Constrain mobile OrbitControls (increase minDistance / lower target y / clamp polar angle) so the billboard cannot rise into the hero copy band after ENTER BOARD CAM.",
+    "Attach data-testid='hero-3d-canvas' to an element with real dimensions (or the <canvas> itself) so visibility assertions work.",
+    "Hide .menu-button on >800px widths (or wire desktop behaviour) and either implement or remove the ZOOM control."
+  ],
+  "critical_code_review_comments": [
+    "App.js duplicates the 800px breakpoint in JS (matchMedia) and CSS; extract to one source to avoid drift between cameraConfig and the mobile CSS block.",
+    "Car() receives isMobile only for position/taillight size, but neither pose puts it inside the camera frustum - the prop plumbing is currently pointless.",
+    "App.css line 6/7 fight the R3F inline styles with !important; this is what zeroes out the wrapper div height and is fragile.",
+    "reset-camera-control and cinematic-control both just call setCinematic(true) - RESET does not reset the orbit camera pose, so after user orbiting RESET is a no-op beyond re-enabling cinematic."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "78%"},
+  "seed_data_creation": "None - no backend/data layer in Phase 1.",
+  "should_call_test_agent_after_fix": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Use wait_until='domcontentloaded' (networkidle never settles due to the CRA dev websocket) and wait ~7s for the R3F warm-up. Verified: mobile navbar/drawer/dock/no-overlap at 390x844, 393x852, 430x932 and desktop 1440x900 no-regression. Still open: car never visible (both breakpoints), billboard overlapping hero copy after mobile ORBIT, zero-height hero-3d-canvas testid, dead desktop hamburger and ZOOM button. No files were modified by me.",
+  "rca_of_the_issue": "Mobile no-overlap is achieved purely by camera framing (camera [0,3.5,17], lookAt (0,6.4,-32)) plus the reserved top-64px hero band, which works in cinematic state. The same upward tilt pushes the car (y~0.55, z=6) out of the bottom of the frustum, so the requested foreground silhouette is absent; on desktop the cinematic dolly to z=1.5 travels past the car at z=8. Entering ORBIT hands control to OrbitControls with target y=8.5 and minDistance 8, which is not constrained to keep the billboard in the lower half, so it re-enters the hero text band."
+}
