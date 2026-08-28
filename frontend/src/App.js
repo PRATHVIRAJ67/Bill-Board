@@ -41,8 +41,8 @@ export default function App() {
   const selectedSpot = selectedId != null ? SPOTS.find((s) => s.id === selectedId) : null;
 
   const cameraConfig = isMobile
-    ? { position: [0, 3.5, 18], fov: 55, near: 0.1, far: 200 }
-    : { position: [0.3, 3.3, 17], fov: 52, near: 0.1, far: 200 };
+    ? { position: [0, 3.0, 24], fov: 52, near: 0.1, far: 220 }
+    : { position: [0, 2.5, 14], fov: 62, near: 0.1, far: 220 };
 
   const handleZoom = () => setZoomStep((s) => (s + 1) % 3);
   const handleReset = () => {

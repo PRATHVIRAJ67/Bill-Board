@@ -36,6 +36,7 @@ export const SPOTS = [
 ];
 
 // Grid geometry constants shared between panel rendering and camera focus.
+export const BILLBOARD_SCALE = 1.6;
 export const GRID = {
   cols: 6,
   rows: 5,
@@ -43,8 +44,8 @@ export const GRID = {
   rowStep: 1.48,
   originX: -7.7,
   originY: 3.25,
-  // Billboard local origin in world space (matches <Billboard/> group).
-  billboardZ: -38,
+  // Billboard group placement in world space.
+  billboardZ: -30,
   panelsY: 8.2,
   panelsZ: 0.42,
 };
@@ -52,8 +53,10 @@ export const GRID = {
 export function panelWorldPosition(index) {
   const col = index % GRID.cols;
   const row = Math.floor(index / GRID.cols);
-  const x = GRID.originX + col * GRID.colStep;
-  const y = GRID.panelsY + GRID.originY - row * GRID.rowStep;
-  const z = GRID.billboardZ + GRID.panelsZ;
+  // Panels live inside the scaled Billboard group, so their world
+  // coordinates depend on BILLBOARD_SCALE for x/y and add billboardZ for z.
+  const x = BILLBOARD_SCALE * (GRID.originX + col * GRID.colStep);
+  const y = BILLBOARD_SCALE * (GRID.panelsY + GRID.originY - row * GRID.rowStep);
+  const z = GRID.billboardZ + BILLBOARD_SCALE * GRID.panelsZ;
   return [x, y, z];
 }

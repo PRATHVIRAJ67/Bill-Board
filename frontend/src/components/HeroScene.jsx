@@ -56,17 +56,17 @@ function WetRoad({ isMobile }) {
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.03, -34]} receiveShadow>
         <planeGeometry args={[38, 140]} />
         <MeshReflectorMaterial
-          blur={isMobile ? [200, 100] : [420, 120]}
-          resolution={isMobile ? 256 : 512}
-          mixBlur={1.2}
-          mixStrength={isMobile ? 3.4 : 4.2}
+          blur={isMobile ? [220, 100] : [380, 90]}
+          resolution={isMobile ? 256 : 640}
+          mixBlur={0.9}
+          mixStrength={isMobile ? 5.2 : 7.5}
           depthScale={1.1}
-          minDepthThreshold={0.4}
-          maxDepthThreshold={1.4}
-          roughness={0.62}
-          metalness={0.55}
+          minDepthThreshold={0.35}
+          maxDepthThreshold={1.6}
+          roughness={0.42}
+          metalness={0.7}
           color="#080d12"
-          mirror={0.55}
+          mirror={0.72}
         />
       </mesh>
       {/* Lane markings */}
@@ -227,31 +227,64 @@ function Traffic() {
   useFrame((_, delta) =>
     cars.current.forEach((car, i) => {
       if (car) {
-        car.position.z += delta * (10 + (i % 3) * 2);
-        if (car.position.z > 16) car.position.z -= 112;
+        car.position.z += delta * (9 + (i % 3) * 1.5);
+        if (car.position.z > 12) car.position.z -= 140;
       }
     })
   );
+  // Fewer, better-spaced cars in three outer lanes so they never share a
+  // lane with the hero (hero is centred, traffic uses ±1.8, ±5.4 lanes).
+  const layout = useMemo(() => {
+    const lanes = [-5.4, -1.8, 1.8, 5.4];
+    const arr = [];
+    for (let i = 0; i < 10; i++) {
+      const laneIdx = (i * 3 + 1) % 4;
+      arr.push({ x: lanes[laneIdx], z: -14 - i * 12 - (i % 2) * 3, color: i % 3 === 0 ? "#0f1a24" : "#141f2a" });
+    }
+    return arr;
+  }, []);
   return (
     <group>
-      {Array.from({ length: 11 }, (_, i) => (
+      {layout.map((p, i) => (
         <group
           key={i}
           ref={(node) => { cars.current[i] = node; }}
-          position={[(i % 4 - 1.5) * 3.8, 0.3, -i * 10 - 12]}
+          position={[p.x, 0.05, p.z]}
         >
-          <mesh castShadow>
-            <boxGeometry args={[1.35, 0.5, 2.9]} />
-            <meshStandardMaterial color={i % 3 === 0 ? "#1a2530" : "#0d151b"} metalness={0.85} roughness={0.22} />
+          {/* Chassis */}
+          <mesh castShadow position={[0, 0.4, 0]}>
+            <boxGeometry args={[1.55, 0.5, 3.5]} />
+            <meshStandardMaterial color={p.color} metalness={0.85} roughness={0.24} />
           </mesh>
-          <mesh position={[0, 0.5, 0.4]}>
-            <boxGeometry args={[1.15, 0.42, 1.5]} />
-            <meshStandardMaterial color="#050a0f" metalness={0.35} roughness={0.15} />
+          {/* Cabin (roof + windshield) — tapered smaller box */}
+          <mesh position={[0, 0.82, 0.15]}>
+            <boxGeometry args={[1.35, 0.4, 1.9]} />
+            <meshStandardMaterial color="#03080d" metalness={0.5} roughness={0.1} />
           </mesh>
-          <mesh position={[0, 0.5, 1.35]}>
-            <boxGeometry args={[1.1, 0.09, 0.06]} />
-            <meshBasicMaterial color="#ff2a48" toneMapped={false} />
+          {/* Rear window subtle glass strip */}
+          <mesh position={[0, 0.78, 1.06]} rotation={[0.35, 0, 0]}>
+            <boxGeometry args={[1.2, 0.3, 0.04]} />
+            <meshStandardMaterial color="#020508" metalness={0.6} roughness={0.05} transparent opacity={0.9} />
           </mesh>
+          {/* Taillight bar — small emissive strip, NOT a bright rectangle */}
+          <mesh position={[0, 0.5, 1.76]}>
+            <boxGeometry args={[1.25, 0.05, 0.03]} />
+            <meshBasicMaterial color="#c81a34" toneMapped={false} />
+          </mesh>
+          {/* Sculpted taillight caps */}
+          {[-1, 1].map((s) => (
+            <mesh key={s} position={[s * 0.55, 0.5, 1.77]}>
+              <boxGeometry args={[0.3, 0.14, 0.03]} />
+              <meshBasicMaterial color="#e33352" toneMapped={false} />
+            </mesh>
+          ))}
+          {/* Wheels — thin cylinders at 4 corners */}
+          {[[-0.7, 0.28, 1.2], [0.7, 0.28, 1.2], [-0.7, 0.28, -1.2], [0.7, 0.28, -1.2]].map(([wx, wy, wz], j) => (
+            <mesh key={j} position={[wx, wy, wz]} rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.28, 0.28, 0.18, 16]} />
+              <meshStandardMaterial color="#08090b" metalness={0.4} roughness={0.85} />
+            </mesh>
+          ))}
         </group>
       ))}
     </group>
@@ -330,8 +363,8 @@ function Wheel({ position, spinRef }) {
 
 function Car({ isMobile }) {
   // Chase-cam foreground per the AAA reference — lower-left composition.
-  const position = isMobile ? [-0.3, 0, 5] : [-0.5, 0, 5];
-  const scale = isMobile ? 1.0 : 1.05;
+  const position = isMobile ? [-0.3, 0, 6] : [-0.5, 0, 2];
+  const scale = isMobile ? 1.05 : 1.1;
   const bodyGeom = useSuperCarBodyGeom();
   const groupRef = useRef();
   const wheelRefs = [useRef(), useRef(), useRef(), useRef()];
@@ -365,21 +398,21 @@ function Car({ isMobile }) {
       >
         {/* Main body (sculpted extrude) — dark metallic paint with soft rim gloss */}
         <mesh geometry={bodyGeom} castShadow>
-          <meshStandardMaterial color="#3a4d5a" metalness={0.9} roughness={0.22} envMapIntensity={1.4} />
+          <meshStandardMaterial color="#455866" metalness={0.9} roughness={0.2} envMapIntensity={1.6} />
         </mesh>
 
         {/* Rear haunches — bulging shoulders above rear wheels */}
         {[-1, 1].map((s) => (
           <mesh key={s} castShadow position={[1.35, 0.65, s * (CAR_WIDTH / 2 - 0.05)]}>
             <sphereGeometry args={[0.5, 12, 8, 0, Math.PI]} />
-            <meshStandardMaterial color="#374a56" metalness={0.9} roughness={0.22} />
+            <meshStandardMaterial color="#3f5261" metalness={0.9} roughness={0.2} />
           </mesh>
         ))}
         {/* Front fender flares */}
         {[-1, 1].map((s) => (
           <mesh key={`ff${s}`} castShadow position={[-1.55, 0.55, s * (CAR_WIDTH / 2 - 0.05)]}>
             <sphereGeometry args={[0.4, 12, 8, 0, Math.PI]} />
-            <meshStandardMaterial color="#334652" metalness={0.9} roughness={0.24} />
+            <meshStandardMaterial color="#3c4f5d" metalness={0.9} roughness={0.22} />
           </mesh>
         ))}
 
@@ -567,9 +600,11 @@ function Panels({ hoveredId, selectedId, onHover, onSelect }) {
 
 /* ---------------------------------------------------------------- Billboard */
 function Billboard({ hoveredId, selectedId, onHover, onSelect }) {
-  const lamps = useMemo(() => [-8, -5, -2, 1, 4, 7], []);
+  const lamps = useMemo(() => [-12, -8, -4, 0, 4, 8, 12], []);
+  // Much larger + slightly closer than before to match the referenced
+  // "billboard fills the top half of the screen" composition.
   return (
-    <group position={[0, 0, -38]}>
+    <group position={[0, 0, -30]} scale={1.6}>
       <mesh position={[0, 8.2, 0]} castShadow>
         <boxGeometry args={[20, 8.7, 0.42]} />
         <meshStandardMaterial color="#0b1115" metalness={0.82} roughness={0.26} />
@@ -578,11 +613,11 @@ function Billboard({ hoveredId, selectedId, onHover, onSelect }) {
         <boxGeometry args={[19.4, 8.1, 0.06]} />
         <meshStandardMaterial color="#05090d" metalness={0.45} roughness={0.32} emissive="#021823" emissiveIntensity={0.32} />
       </mesh>
-      {/* Cyan edge frame */}
-      <mesh position={[0, 12.4, 0.35]}><boxGeometry args={[20.1, 0.08, 0.05]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
-      <mesh position={[0, 4.0, 0.35]}><boxGeometry args={[20.1, 0.08, 0.05]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
-      <mesh position={[-10.05, 8.2, 0.35]}><boxGeometry args={[0.08, 8.5, 0.05]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
-      <mesh position={[10.05, 8.2, 0.35]}><boxGeometry args={[0.08, 8.5, 0.05]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
+      {/* Cyan edge frame — thicker for the "billboard is huge" feel */}
+      <mesh position={[0, 12.4, 0.35]}><boxGeometry args={[20.1, 0.12, 0.06]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
+      <mesh position={[0, 4.0, 0.35]}><boxGeometry args={[20.1, 0.12, 0.06]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
+      <mesh position={[-10.05, 8.2, 0.35]}><boxGeometry args={[0.12, 8.5, 0.06]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
+      <mesh position={[10.05, 8.2, 0.35]}><boxGeometry args={[0.12, 8.5, 0.06]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
 
       {/* Vertical columns */}
       {[-9.8, 9.8].map((x) => (
@@ -602,12 +637,12 @@ function Billboard({ hoveredId, selectedId, onHover, onSelect }) {
       <mesh position={[0, 2.2, 0]} castShadow><boxGeometry args={[15.8, 0.5, 0.72]} /><meshStandardMaterial color="#202c33" metalness={0.9} /></mesh>
       <mesh position={[0, 14.7, 0]} castShadow><boxGeometry args={[20.5, 0.45, 0.76]} /><meshStandardMaterial color="#202c33" metalness={0.9} /></mesh>
 
-      {/* Overhead lamps */}
+      {/* Overhead lamps — more of them and brighter */}
       {lamps.map((x, i) => (
         <group key={i} position={[x, 13.4, 0.15]}>
           <mesh><boxGeometry args={[0.07, 0.7, 0.07]} /><meshStandardMaterial color="#2b3841" metalness={0.85} roughness={0.35} /></mesh>
-          <mesh position={[0, -0.28, 0.24]} rotation={[0.9, 0, 0]}><boxGeometry args={[0.55, 0.14, 0.35]} /><meshStandardMaterial color="#2b3841" metalness={0.85} roughness={0.35} /></mesh>
-          <mesh position={[0, -0.44, 0.4]}><sphereGeometry args={[0.11, 12, 8]} /><meshBasicMaterial color="#fff6db" toneMapped={false} /></mesh>
+          <mesh position={[0, -0.28, 0.24]} rotation={[0.9, 0, 0]}><boxGeometry args={[0.65, 0.16, 0.4]} /><meshStandardMaterial color="#2b3841" metalness={0.85} roughness={0.35} /></mesh>
+          <mesh position={[0, -0.46, 0.42]}><sphereGeometry args={[0.13, 12, 8]} /><meshBasicMaterial color="#fff6db" toneMapped={false} /></mesh>
         </group>
       ))}
       <Panels hoveredId={hoveredId} selectedId={selectedId} onHover={onHover} onSelect={onSelect} />
@@ -644,20 +679,23 @@ function SceneCamera({ cinematic, isMobile, zoomStep, selectedId, resetTick }) {
     }
     if (cinematic) {
       if (isMobile) {
-        // Mobile chase-cam: pulled up and slightly back so both the car
-        // (foreground) and billboard (mid) remain in the tall portrait frame.
-        const targetZ = THREE.MathUtils.lerp(20, 15, progress) + zoomOffset;
+        // Mobile chase-cam: pulled back so the larger billboard fits below
+        // the hero-copy band without overlap; camera y is low enough that
+        // the hero car stays visible in the lower foreground.
+        const targetZ = THREE.MathUtils.lerp(24, 20, progress) + zoomOffset;
         camera.position.x = THREE.MathUtils.damp(camera.position.x, 0, 1.5, delta);
         camera.position.z = THREE.MathUtils.damp(camera.position.z, targetZ, 1.2, delta);
-        camera.position.y = THREE.MathUtils.damp(camera.position.y, 3.4 + Math.sin(elapsed.current * 0.22) * 0.06, 1.3, delta);
-        currentLookAt.current.set(0, 5.5, -22);
+        camera.position.y = THREE.MathUtils.damp(camera.position.y, 3.0 + Math.sin(elapsed.current * 0.22) * 0.05, 1.3, delta);
+        currentLookAt.current.set(0, 7.5, -20);
         camera.lookAt(currentLookAt.current);
       } else {
-        const targetZ = THREE.MathUtils.lerp(17, 11.5, progress) + zoomOffset;
-        camera.position.x = THREE.MathUtils.damp(camera.position.x, 0.3, 1.5, delta);
+        // Tight cinematic chase-cam — car dominates the lower half, huge
+        // billboard fills the upper half (matches the AAA reference brief).
+        const targetZ = THREE.MathUtils.lerp(14, 10, progress) + zoomOffset;
+        camera.position.x = THREE.MathUtils.damp(camera.position.x, 0, 1.5, delta);
         camera.position.z = THREE.MathUtils.damp(camera.position.z, targetZ, 1.2, delta);
-        camera.position.y = THREE.MathUtils.damp(camera.position.y, 3.3 + Math.sin(elapsed.current * 0.22) * 0.06, 1.3, delta);
-        currentLookAt.current.set(-0.3, 2.4, -14);
+        camera.position.y = THREE.MathUtils.damp(camera.position.y, 2.5 + Math.sin(elapsed.current * 0.22) * 0.05, 1.3, delta);
+        currentLookAt.current.set(0, 4, -14);
         camera.lookAt(currentLookAt.current);
       }
     }
@@ -703,11 +741,11 @@ export default function HeroScene({ cinematic, isMobile, zoomStep = 0, hoveredId
       <OrbitControls
         enabled={!cinematic && selectedId == null}
         enablePan={false}
-        minDistance={isMobile ? 16 : 8}
-        maxDistance={isMobile ? 30 : 24}
+        minDistance={isMobile ? 18 : 12}
+        maxDistance={isMobile ? 36 : 30}
         maxPolarAngle={isMobile ? 1.42 : 1.52}
         minPolarAngle={isMobile ? 1.05 : 0.8}
-        target={[0, isMobile ? 5.5 : 5.2, isMobile ? -32 : -29]}
+        target={[0, isMobile ? 8 : 8, -30]}
       />
     </>
   );
