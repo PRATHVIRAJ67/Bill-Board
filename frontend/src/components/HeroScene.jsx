@@ -259,143 +259,213 @@ function Traffic() {
 }
 
 /* ------------------------------------------------------------ Car (hero) */
+const CAR_LENGTH = 4.8;
+const CAR_WIDTH = 1.98;
+
+// Sculpted side-profile silhouette of a low-slung supercar. Extruded across
+// the car's width to produce a real 3D body (not a box primitive).
+function useSuperCarBodyGeom() {
+  return useMemo(() => {
+    const s = new THREE.Shape();
+    s.moveTo(-2.4, 0.18);
+    s.lineTo(-2.35, 0.42);                                    // front bumper
+    s.bezierCurveTo(-2.35, 0.55, -2.15, 0.6, -1.95, 0.6);    // nose curve
+    s.lineTo(-1.05, 0.62);                                    // hood
+    s.bezierCurveTo(-0.5, 0.63, -0.15, 0.68, 0.05, 1.1);     // hood → windshield
+    s.lineTo(0.75, 1.18);                                     // roof top
+    s.bezierCurveTo(1.1, 1.15, 1.35, 1.05, 1.55, 0.92);      // rear window
+    s.bezierCurveTo(1.9, 0.85, 2.2, 0.78, 2.35, 0.68);       // rear deck
+    s.lineTo(2.4, 0.42);                                      // rear bumper top
+    s.lineTo(2.4, 0.18);                                      // rear bottom
+    s.lineTo(-2.4, 0.18);                                     // close
+    const g = new THREE.ExtrudeGeometry(s, {
+      depth: CAR_WIDTH,
+      bevelEnabled: true,
+      bevelThickness: 0.06,
+      bevelSize: 0.08,
+      bevelSegments: 5,
+      curveSegments: 14,
+      steps: 1,
+    });
+    g.translate(0, 0, -CAR_WIDTH / 2);
+    g.computeVertexNormals();
+    return g;
+  }, []);
+}
+
+// 5-spoke wheel with rim + brake caliper visible.
+// Cylinder default axis is Y; rotating by X=π/2 puts the axle along Z (the
+// car's width axis in group-local space). Spin uses local Y after rotation
+// which corresponds to the car's forward/back axis after the initial tilt.
+function Wheel({ position, spinRef }) {
+  return (
+    <group position={position} rotation={[Math.PI / 2, 0, 0]}>
+      <group ref={spinRef}>
+        {/* Tire */}
+        <mesh castShadow>
+          <cylinderGeometry args={[0.42, 0.42, 0.32, 28]} />
+          <meshStandardMaterial color="#0a0d10" metalness={0.35} roughness={0.85} />
+        </mesh>
+        {/* Rim disc */}
+        <mesh position={[0, 0.17, 0]}>
+          <cylinderGeometry args={[0.28, 0.28, 0.02, 20]} />
+          <meshStandardMaterial color="#2a3540" metalness={0.9} roughness={0.28} />
+        </mesh>
+        {/* Hub */}
+        <mesh position={[0, 0.18, 0]}>
+          <cylinderGeometry args={[0.09, 0.09, 0.04, 12]} />
+          <meshStandardMaterial color="#7a8a95" metalness={0.9} roughness={0.3} />
+        </mesh>
+        {/* 5 spokes */}
+        {[0, 1, 2, 3, 4].map((i) => (
+          <mesh key={i} position={[0, 0.175, 0]} rotation={[0, (i * Math.PI * 2) / 5, 0]}>
+            <boxGeometry args={[0.04, 0.02, 0.5]} />
+            <meshStandardMaterial color="#4a5560" metalness={0.9} roughness={0.32} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  );
+}
+
 function Car({ isMobile }) {
-  const position = isMobile ? [0, 0.4, 3] : [0, 0.55, 2];
-  const scale = isMobile ? 1.2 : 1.15;
-  const bodyRef = useRef();
-  const wheels = useRef([]);
+  // Chase-cam foreground per the AAA reference — lower-left composition.
+  const position = isMobile ? [-0.3, 0, 5] : [-0.5, 0, 5];
+  const scale = isMobile ? 1.0 : 1.05;
+  const bodyGeom = useSuperCarBodyGeom();
+  const groupRef = useRef();
+  const wheelRefs = [useRef(), useRef(), useRef(), useRef()];
+
   useFrame((state, delta) => {
-    wheels.current.forEach((w) => { if (w) w.rotation.x += delta * 12; });
-    if (bodyRef.current) {
-      bodyRef.current.position.y = 0.02 + Math.sin(state.clock.elapsedTime * 4.5) * 0.008;
+    wheelRefs.forEach((r) => { if (r.current) r.current.rotation.y += delta * 22; });
+    if (groupRef.current) {
+      const t = state.clock.elapsedTime;
+      groupRef.current.position.y = position[1] + Math.sin(t * 5) * 0.008;
     }
   });
 
-  const carX = position[0], carY = position[1], carZ = position[2];
+  const [px, py, pz] = position;
 
   return (
     <>
-      {/* World-space rim key light — mounted from above-right, casts a strong
-          highlight across the car's roof/fender so it reads against the dark. */}
-      <pointLight
-        position={[carX + 3.2, carY + 5.4, carZ + 3.4]}
-        intensity={26}
-        distance={13}
-        color="#f2f8ff"
-      />
-      {/* Cyan fill from the billboard direction (front-left of car) */}
-      <pointLight
-        position={[carX - 2.4, carY + 3.4, carZ - 4.2]}
-        intensity={11}
-        distance={10}
-        color={cyan}
-      />
-      {/* Warm accent grazing the driver-side of the body */}
-      <pointLight
-        position={[carX + 2.8, carY + 1.4, carZ - 1]}
-        intensity={5}
-        distance={6}
-        color="#ffb877"
-      />
+      {/* Cinematic rim key light — glances across the roof / rear haunches */}
+      <pointLight position={[px + 3.6, py + 5.8, pz + 3.4]} intensity={45} distance={16} color="#eaf6ff" />
+      {/* Cyan billboard fill from the front */}
+      <pointLight position={[px - 2.6, py + 3.4, pz - 4.6]} intensity={22} distance={12} color={cyan} />
+      {/* Warm streetlight side-graze */}
+      <pointLight position={[px + 3.2, py + 1.6, pz - 0.5]} intensity={10} distance={7} color="#ffb877" />
+      {/* Under-body ambient fill so the car isn't a silhouette on black road */}
+      <pointLight position={[px, py + 1.4, pz]} intensity={2} distance={4} color="#5a7b8f" />
 
-      <group position={position} rotation={[0, Math.PI, 0]} scale={scale}>
-        <group ref={bodyRef}>
-          {/* Main chassis */}
-          <mesh castShadow position={[0, 0.32, 0]}>
-            <boxGeometry args={[2.5, 0.42, 5.2]} />
-            <meshStandardMaterial color="#1e2b34" metalness={0.85} roughness={0.24} />
-          </mesh>
-          {/* Fender flares */}
-          <mesh castShadow position={[0, 0.35, 1.7]}>
-            <boxGeometry args={[2.72, 0.32, 1.4]} />
-            <meshStandardMaterial color="#22303a" metalness={0.85} roughness={0.22} />
-          </mesh>
-          <mesh castShadow position={[0, 0.35, -1.7]}>
-            <boxGeometry args={[2.72, 0.32, 1.4]} />
-            <meshStandardMaterial color="#22303a" metalness={0.85} roughness={0.22} />
-          </mesh>
-          {/* Hood scoop */}
-          <mesh castShadow position={[0, 0.55, -1.6]}>
-            <boxGeometry args={[1.7, 0.14, 1.4]} />
-            <meshStandardMaterial color="#1a2731" metalness={0.9} roughness={0.24} />
-          </mesh>
-          {/* Cabin */}
-          <mesh castShadow position={[0, 0.85, -0.05]}>
-            <boxGeometry args={[1.85, 0.55, 2.3]} />
-            <meshStandardMaterial color="#0e1720" metalness={0.55} roughness={0.14} />
-          </mesh>
-          {/* Rear window */}
-          <mesh position={[0, 0.85, 0.95]} rotation={[-0.35, 0, 0]}>
-            <planeGeometry args={[1.6, 1.1]} />
-            <meshStandardMaterial color="#04080c" metalness={0.85} roughness={0.08} transparent opacity={0.9} />
-          </mesh>
-          {/* Roof cyan strip */}
-          <mesh position={[0, 1.14, -0.1]}>
-            <boxGeometry args={[1.3, 0.012, 1.4]} />
-            <meshBasicMaterial color={cyan} transparent opacity={0.4} toneMapped={false} />
-          </mesh>
-          {/* Full-width taillight bar */}
-          <mesh position={[0, 0.55, 2.62]}>
-            <boxGeometry args={[2.35, 0.14, 0.05]} />
-            <meshBasicMaterial color="#ff173f" toneMapped={false} />
-          </mesh>
-          {[-1, 1].map((x) => (
-            <mesh key={x} position={[x * 1.08, 0.55, 2.63]}>
-              <boxGeometry args={[0.5, 0.24, 0.05]} />
-              <meshBasicMaterial color="#ff2848" toneMapped={false} />
-            </mesh>
-          ))}
+      <group
+        ref={groupRef}
+        position={position}
+        rotation={[0, -Math.PI / 2, 0]}
+        scale={scale}
+      >
+        {/* Main body (sculpted extrude) — dark metallic paint with soft rim gloss */}
+        <mesh geometry={bodyGeom} castShadow>
+          <meshStandardMaterial color="#3a4d5a" metalness={0.9} roughness={0.22} envMapIntensity={1.4} />
+        </mesh>
 
-          {/* Exhaust */}
-          {[-0.55, 0.55].map((x) => (
-            <mesh key={x} position={[x, 0.24, 2.66]} rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.08, 0.08, 0.14, 12]} />
-              <meshStandardMaterial color="#7a8a92" metalness={0.9} roughness={0.35} />
-            </mesh>
-          ))}
-
-          {/* License plate */}
-          <group position={[0, 0.38, 2.66]}>
-            <mesh>
-              <planeGeometry args={[0.9, 0.24]} />
-              <meshStandardMaterial color="#e9e2c4" emissive="#3a3416" emissiveIntensity={0.4} />
-            </mesh>
-            <Text position={[0, 0, 0.008]} fontSize={0.1} color="#0a0a0a" anchorX="center" anchorY="middle" letterSpacing={0.02}>
-              THE BOARD
-            </Text>
-          </group>
-
-          {/* Front hood highlight */}
-          <mesh position={[0, 0.54, -2.4]}>
-            <boxGeometry args={[1.6, 0.02, 0.24]} />
-            <meshBasicMaterial color={cyan} transparent opacity={0.3} toneMapped={false} />
+        {/* Rear haunches — bulging shoulders above rear wheels */}
+        {[-1, 1].map((s) => (
+          <mesh key={s} castShadow position={[1.35, 0.65, s * (CAR_WIDTH / 2 - 0.05)]}>
+            <sphereGeometry args={[0.5, 12, 8, 0, Math.PI]} />
+            <meshStandardMaterial color="#374a56" metalness={0.9} roughness={0.22} />
           </mesh>
+        ))}
+        {/* Front fender flares */}
+        {[-1, 1].map((s) => (
+          <mesh key={`ff${s}`} castShadow position={[-1.55, 0.55, s * (CAR_WIDTH / 2 - 0.05)]}>
+            <sphereGeometry args={[0.4, 12, 8, 0, Math.PI]} />
+            <meshStandardMaterial color="#334652" metalness={0.9} roughness={0.24} />
+          </mesh>
+        ))}
 
-          {/* Wheels */}
-          {[[-1.15, 0.28, 1.55], [1.15, 0.28, 1.55], [-1.15, 0.28, -1.55], [1.15, 0.28, -1.55]].map(([x, y, z], i) => (
-            <group key={i} position={[x, y, z]} rotation={[0, 0, Math.PI / 2]}>
-              <mesh ref={(node) => { wheels.current[i] = node; }} rotation={[Math.PI / 2, 0, 0]} castShadow>
-                <cylinderGeometry args={[0.42, 0.42, 0.36, 24]} />
-                <meshStandardMaterial color="#0a0d10" metalness={0.4} roughness={0.75} />
-              </mesh>
-              <mesh rotation={[Math.PI / 2, 0, 0]}>
-                <cylinderGeometry args={[0.24, 0.24, 0.37, 8]} />
-                <meshStandardMaterial color="#3a4650" metalness={0.85} roughness={0.35} />
-              </mesh>
-            </group>
-          ))}
+        {/* Side rocker panels (blackened lower cladding) */}
+        {[-1, 1].map((s) => (
+          <mesh key={`rk${s}`} position={[0, 0.32, s * (CAR_WIDTH / 2 + 0.008)]}>
+            <boxGeometry args={[3.4, 0.14, 0.03]} />
+            <meshStandardMaterial color="#050a0d" roughness={0.7} metalness={0.35} />
+          </mesh>
+        ))}
+
+        {/* Windshield glass overlay */}
+        <mesh position={[-0.22, 0.94, 0]} rotation={[0, 0, -0.7]}>
+          <boxGeometry args={[0.85, 0.05, CAR_WIDTH - 0.18]} />
+          <meshStandardMaterial color="#040a10" metalness={0.9} roughness={0.05} transparent opacity={0.85} />
+        </mesh>
+        {/* Rear window glass */}
+        <mesh position={[1.05, 0.99, 0]} rotation={[0, 0, 0.5]}>
+          <boxGeometry args={[0.7, 0.05, CAR_WIDTH - 0.22]} />
+          <meshStandardMaterial color="#03080c" metalness={0.9} roughness={0.05} transparent opacity={0.88} />
+        </mesh>
+        {/* Roof cyan LED accent */}
+        <mesh position={[0.35, 1.22, 0]}>
+          <boxGeometry args={[0.65, 0.01, 0.55]} />
+          <meshBasicMaterial color={cyan} transparent opacity={0.55} toneMapped={false} />
+        </mesh>
+
+        {/* Front headlight strips (arrow-shaped LED) */}
+        {[-1, 1].map((s) => (
+          <mesh key={`hl${s}`} position={[-2.28, 0.5, s * 0.65]}>
+            <boxGeometry args={[0.05, 0.06, 0.45]} />
+            <meshBasicMaterial color="#eaf6ff" toneMapped={false} />
+          </mesh>
+        ))}
+        {/* Full-width rear taillight bar */}
+        <mesh position={[2.4, 0.6, 0]}>
+          <boxGeometry args={[0.04, 0.08, CAR_WIDTH - 0.2]} />
+          <meshBasicMaterial color="#ff1638" toneMapped={false} />
+        </mesh>
+        {/* Sculpted taillight caps (Y-shaped LEDs) */}
+        {[-1, 1].map((s) => (
+          <mesh key={`tc${s}`} position={[2.41, 0.6, s * (CAR_WIDTH / 2 - 0.32)]}>
+            <boxGeometry args={[0.04, 0.2, 0.5]} />
+            <meshBasicMaterial color="#ff2f52" toneMapped={false} />
+          </mesh>
+        ))}
+        {/* Split rear diffuser fins */}
+        {[-0.4, -0.13, 0.13, 0.4].map((z, i) => (
+          <mesh key={i} position={[2.28, 0.22, z]}>
+            <boxGeometry args={[0.32, 0.02, 0.05]} />
+            <meshStandardMaterial color="#0a0f14" metalness={0.4} roughness={0.7} />
+          </mesh>
+        ))}
+        {/* Exhaust tips (quad) */}
+        {[-0.62, -0.22, 0.22, 0.62].map((z, i) => (
+          <mesh key={i} position={[2.42, 0.28, z]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.075, 0.075, 0.12, 12]} />
+            <meshStandardMaterial color="#8b9aa0" metalness={0.95} roughness={0.28} />
+          </mesh>
+        ))}
+        {/* License plate */}
+        <group position={[2.44, 0.4, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <mesh>
+            <planeGeometry args={[0.85, 0.22]} />
+            <meshStandardMaterial color="#e9e2c4" emissive="#3a3416" emissiveIntensity={0.5} />
+          </mesh>
+          <Text position={[0, 0, 0.008]} fontSize={0.09} color="#0a0a0a" anchorX="center" anchorY="middle" letterSpacing={0.02}>
+            THE BOARD
+          </Text>
         </group>
+
+        {/* Wheels — placed at each corner along the car's length (X) axis */}
+        <Wheel position={[-1.55, 0.42, CAR_WIDTH / 2 - 0.02]} spinRef={wheelRefs[0]} />
+        <Wheel position={[-1.55, 0.42, -CAR_WIDTH / 2 + 0.02]} spinRef={wheelRefs[1]} />
+        <Wheel position={[1.55, 0.42, CAR_WIDTH / 2 - 0.02]} spinRef={wheelRefs[2]} />
+        <Wheel position={[1.55, 0.42, -CAR_WIDTH / 2 + 0.02]} spinRef={wheelRefs[3]} />
 
         {/* Contact shadow */}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]}>
-          <planeGeometry args={[3.6, 6]} />
-          <meshBasicMaterial color="#000000" transparent opacity={0.5} depthWrite={false} />
+          <planeGeometry args={[3.8, 6]} />
+          <meshBasicMaterial color="#000000" transparent opacity={0.55} depthWrite={false} />
         </mesh>
       </group>
 
-      {/* Taillight red spill onto wet road behind car — kept subtle so the
-          body itself remains the focal element, not the glow. */}
-      <pointLight position={[carX, carY + 0.5, carZ + 3.8]} intensity={isMobile ? 1.2 : 1.6} distance={4.5} color="#ff2848" />
+      {/* Taillight red spill (world-space so it reflects in the wet mirror) */}
+      <pointLight position={[px, py + 0.5, pz + 3.4]} intensity={isMobile ? 1.4 : 1.9} distance={5} color="#ff2848" />
     </>
   );
 }
@@ -574,18 +644,20 @@ function SceneCamera({ cinematic, isMobile, zoomStep, selectedId, resetTick }) {
     }
     if (cinematic) {
       if (isMobile) {
-        const targetZ = THREE.MathUtils.lerp(22, 17, progress) + zoomOffset;
+        // Mobile chase-cam: pulled up and slightly back so both the car
+        // (foreground) and billboard (mid) remain in the tall portrait frame.
+        const targetZ = THREE.MathUtils.lerp(20, 15, progress) + zoomOffset;
         camera.position.x = THREE.MathUtils.damp(camera.position.x, 0, 1.5, delta);
         camera.position.z = THREE.MathUtils.damp(camera.position.z, targetZ, 1.2, delta);
-        camera.position.y = THREE.MathUtils.damp(camera.position.y, 3.5 + Math.sin(elapsed.current * 0.22) * 0.06, 1.3, delta);
-        currentLookAt.current.set(0, 8, -30);
+        camera.position.y = THREE.MathUtils.damp(camera.position.y, 3.4 + Math.sin(elapsed.current * 0.22) * 0.06, 1.3, delta);
+        currentLookAt.current.set(0, 5.5, -22);
         camera.lookAt(currentLookAt.current);
       } else {
-        const targetZ = THREE.MathUtils.lerp(18, 12, progress) + zoomOffset;
-        camera.position.x = THREE.MathUtils.damp(camera.position.x, 0, 1.5, delta);
+        const targetZ = THREE.MathUtils.lerp(17, 11.5, progress) + zoomOffset;
+        camera.position.x = THREE.MathUtils.damp(camera.position.x, 0.3, 1.5, delta);
         camera.position.z = THREE.MathUtils.damp(camera.position.z, targetZ, 1.2, delta);
-        camera.position.y = THREE.MathUtils.damp(camera.position.y, 3.0 + Math.sin(elapsed.current * 0.22) * 0.06, 1.3, delta);
-        currentLookAt.current.set(0, 6.6, -24);
+        camera.position.y = THREE.MathUtils.damp(camera.position.y, 3.3 + Math.sin(elapsed.current * 0.22) * 0.06, 1.3, delta);
+        currentLookAt.current.set(-0.3, 2.4, -14);
         camera.lookAt(currentLookAt.current);
       }
     }
