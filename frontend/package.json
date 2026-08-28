@@ -34,6 +34,8 @@
     "@react-three/drei": "10.0.0",
     "@react-three/fiber": "9.1.2",
     "@tanstack/react-query": "5.56.2",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^2.1.1",
     "axios": "1.18.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
@@ -97,6 +99,11 @@
     "globals": "15.15.0",
     "postcss": "8.5.10",
     "tailwindcss": "3.4.17"
+  },
+  "overrides": {
+    "ajv-keywords": {
+      "ajv": "^8.17.1"
+    }
   },
   "resolutions": {
     "react-router": "7.15.1",
