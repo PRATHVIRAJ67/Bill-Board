@@ -5,5 +5,9 @@
   "compatibility_date": "2024-09-01",
   "observability": {
     "enabled": true
+  },
+  "vars": {
+    "SUPABASE_URL": "https://nyfyofcjnphwhxciaqox.supabase.co",
+    "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55ZnlvZmNqbnBod2h4Y2lhcW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc5OTYyNjAsImV4cCI6MjEwMzU3MjI2MH0.tXw5p38PbqdbGmALysxIav5rF3XY-qA6VWzXXQO_1TA"
   }
 }
