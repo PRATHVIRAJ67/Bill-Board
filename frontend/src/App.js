@@ -4,7 +4,9 @@ import { Preload } from "@react-three/drei";
 import * as THREE from "three";
 import HeroScene from "@/components/HeroScene";
 import LiveActivity from "@/components/LiveActivity";
-import { SPOTS } from "@/components/spotData";
+import ClaimSpotModal from "@/components/ClaimSpotModal";
+import { SPOTS, getLinkIcon } from "@/components/spotData";
+import { fetchLiveSpots } from "@/lib/api";
 import "@/App.css";
 
 const navItems = ["THE BOARD", "EXPLORE", "LIVE", "HOW IT WORKS"];
@@ -23,23 +25,41 @@ function useIsMobile() {
 }
 
 export default function App() {
-  const [cinematic, setCinematic] = useState(true);
+  const [cameraMode, setCameraMode] = useState("cinematic");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [zoomStep, setZoomStep] = useState(0);
   const [hoveredId, setHoveredId] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [resetTick, setResetTick] = useState(0);
+  const [spotsList, setSpotsList] = useState(SPOTS);
+  const [claimModalSpot, setClaimModalSpot] = useState(null);
   const isMobile = useIsMobile();
 
-  const stats = useMemo(() => {
-    const claimed = SPOTS.filter((s) => s.claimed).length;
-    const available = SPOTS.length - claimed;
-    const minPrice = Math.min(...SPOTS.filter((s) => !s.claimed).map((s) => s.price));
-    return { total: SPOTS.length, claimed, available, minPrice };
+  // Load dynamic spots from backend API & poll periodically
+  useEffect(() => {
+    const loadSpots = () => {
+      fetchLiveSpots().then((data) => {
+        if (data && Array.isArray(data) && data.length > 0) {
+          setSpotsList(data);
+        }
+      });
+    };
+
+    loadSpots();
+    const timer = setInterval(loadSpots, 5000);
+    return () => clearInterval(timer);
   }, []);
 
-  const hoveredSpot = hoveredId != null ? SPOTS.find((s) => s.id === hoveredId) : null;
-  const selectedSpot = selectedId != null ? SPOTS.find((s) => s.id === selectedId) : null;
+  const stats = useMemo(() => {
+    const claimed = spotsList.filter((s) => s.claimed).length;
+    const available = spotsList.length - claimed;
+    const unclimedSpots = spotsList.filter((s) => !s.claimed);
+    const minPrice = unclimedSpots.length > 0 ? Math.min(...unclimedSpots.map((s) => s.price || 25)) : 25;
+    return { total: spotsList.length, claimed, available, minPrice };
+  }, [spotsList]);
+
+  const hoveredSpot = hoveredId != null ? spotsList.find((s) => s.id === hoveredId) : null;
+  const selectedSpot = selectedId != null ? spotsList.find((s) => s.id === selectedId) : null;
 
   const cameraConfig = isMobile
     ? { position: [0, 2.4, 18.0], fov: 58, near: 0.1, far: 250 }
@@ -49,18 +69,43 @@ export default function App() {
   const handleReset = () => {
     setSelectedId(null);
     setZoomStep(0);
-    setCinematic(true);
+    setCameraMode("cinematic");
     setResetTick((t) => t + 1);
   };
   const handleEnterBoardCam = () => {
-    setCinematic(false);
+    setCameraMode("orbit");
     setSelectedId(null);
   };
+
   const handleSelect = (id) => {
-    setSelectedId(id);
-    setCinematic(true);
+    const spot = spotsList.find((s) => s.id === id);
+    if (spot && !spot.claimed) {
+      setClaimModalSpot(spot);
+    } else {
+      setSelectedId(id);
+      setCameraMode("cinematic");
+    }
   };
+
+  const handleOpenClaimFirstAvailable = () => {
+    const avail = spotsList.find((s) => !s.claimed) || spotsList[0];
+    setClaimModalSpot(avail);
+  };
+
+  const handleClaimSuccess = (updatedSpot) => {
+    setSpotsList((prev) =>
+      prev.map((s) => (s.id === updatedSpot.id ? { ...s, ...updatedSpot } : s))
+    );
+    setSelectedId(updatedSpot.id);
+  };
+
   const handleCloseSpot = () => setSelectedId(null);
+
+  const handleVisitLink = (url) => {
+    if (!url) return;
+    const finalUrl = url.startsWith("http") ? url : `https://${url}`;
+    window.open(finalUrl, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <main className={`board-app ${isMobile ? "is-mobile" : ""}`} data-testid="board-experience">
@@ -75,7 +120,7 @@ export default function App() {
           <fog attach="fog" args={["#081420", 28, isMobile ? 110 : 125]} />
           <Suspense fallback={null}>
             <HeroScene
-              cinematic={cinematic}
+              cameraMode={cameraMode}
               isMobile={isMobile}
               zoomStep={zoomStep}
               hoveredId={hoveredId}
@@ -83,6 +128,7 @@ export default function App() {
               onHover={setHoveredId}
               onSelect={handleSelect}
               resetTick={resetTick}
+              spots={spotsList}
             />
             <Preload all />
           </Suspense>
@@ -128,7 +174,7 @@ export default function App() {
               ))}
               <button
                 className="drawer-cta"
-                onClick={() => { setMobileMenuOpen(false); handleEnterBoardCam(); }}
+                onClick={() => { setMobileMenuOpen(false); handleOpenClaimFirstAvailable(); }}
                 data-testid="drawer-get-spot"
               >GET YOUR SPOT ↗</button>
               <div className="drawer-meta">
@@ -139,18 +185,24 @@ export default function App() {
         )}
 
         <section className={`hero-copy ${selectedSpot ? "hero-copy--dim" : ""}`} data-testid="hero-copy">
-          <p className="eyebrow">DIGITAL TWIN · 04.18.26</p>
+          <p className="eyebrow">LIMITED EDITION #1 · 20 LIFETIME SPOTS</p>
           <h1 data-testid="hero-title">THE INTERNET’S<br /><em>BILLBOARD.</em></h1>
-          <p className="hero-subtitle" data-testid="hero-subtitle">Put yourself on a real billboard.</p>
+          <p className="hero-subtitle" data-testid="hero-subtitle">Own a billboard spot for your brand.One-time purchase. Lifetime ownership.</p>
           <div className="hero-meta" data-testid="hero-meta">
-            {stats.total} SPOTS <b>·</b> {stats.claimed} CLAIMED <b>·</b> {stats.available} AVAILABLE <b>·</b> FROM ${stats.minPrice}
+            {stats.total} SPOTS <b>·</b> {stats.claimed} CLAIMED <b>·</b> <strong style={{ color: "#00c48c" }}>{stats.available} AVAILABLE</strong> <b>·</b> FROM ${stats.minPrice}
           </div>
-          <button className="primary-cta" onClick={handleEnterBoardCam} data-testid="board-cam-button">
-            CLAIM YOUR SPOT <span>↗</span>
-          </button>
+          {stats.available > 0 ? (
+            <button className="primary-cta" onClick={handleOpenClaimFirstAvailable} data-testid="board-cam-button">
+              CLAIM LIFETIME SPOT <span>↗</span>
+            </button>
+          ) : (
+            <button className="primary-cta soldout" onClick={() => alert("Billboard #1 is 100% Sold Out! Board #2 Launching Soon.")} data-testid="board-cam-button">
+              🎉 BOARD #1 SOLD OUT · JOIN BOARD #2 WAITLIST <span>↗</span>
+            </button>
+          )}
         </section>
 
-        {/* Hover tooltip — HTML overlay so it reads sharply on mobile too. */}
+        {/* Hover tooltip */}
         {hoveredSpot && !selectedSpot && (
           <div className="hover-badge" data-testid="hover-badge">
             <div className="hb-num">SPOT #{String(hoveredSpot.id).padStart(2, "0")}</div>
@@ -159,41 +211,69 @@ export default function App() {
             </div>
             {!hoveredSpot.claimed && <div className="hb-price">${hoveredSpot.price}</div>}
             {hoveredSpot.claimed && hoveredSpot.category && (
-              <div className="hb-cat">{hoveredSpot.category}</div>
+              <div className="hb-cat">{getLinkIcon(hoveredSpot.link_type)} {hoveredSpot.category}</div>
             )}
-            <div className="hb-hint">{hoveredSpot.claimed ? "TAP TO INSPECT" : "TAP TO CLAIM"}</div>
+            <div className="hb-hint">{hoveredSpot.claimed ? "TAP TO INSPECT / VISIT" : "TAP TO CLAIM WITH RAZORPAY"}</div>
           </div>
         )}
 
-        {/* Selected spot detail card */}
+        {/* Selected spot detail inspector card */}
         {selectedSpot && (
           <div className="spot-card" data-testid="spot-card">
-            <button className="spot-card-close" onClick={handleCloseSpot} data-testid="spot-card-close" aria-label="Close">✕</button>
+            <button
+              type="button"
+              className="spot-card-close"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCloseSpot();
+              }}
+              aria-label="Close"
+            >
+              ✕
+            </button>
             <div className="spot-card-tag">SPOT #{String(selectedSpot.id).padStart(2, "0")}</div>
             {selectedSpot.claimed ? (
               <>
-                <div className="spot-card-badge" style={{ background: selectedSpot.color }} />
+                <div className="spot-card-badge" style={{ background: selectedSpot.color || "#00c48c" }} />
                 <h2 className="spot-card-title">{selectedSpot.handle}</h2>
-                <p className="spot-card-sub">{selectedSpot.category} · claimed</p>
-                <div className="spot-card-row"><span>STATUS</span><b>CLAIMED</b></div>
+                <p className="spot-card-sub">{getLinkIcon(selectedSpot.link_type)} {selectedSpot.category} · CLAIMED</p>
+                <div className="spot-card-row"><span>STATUS</span><b>CLAIMED & LIVE</b></div>
                 <div className="spot-card-row"><span>OWNER</span><b>{selectedSpot.handle}</b></div>
-                <button className="spot-card-cta secondary" onClick={handleCloseSpot} data-testid="spot-card-back">
-                  BACK TO THE BOARD
-                </button>
+                {selectedSpot.link_url && (
+                  <div className="spot-card-row"><span>DESTINATION</span><b className="link-preview-txt">{selectedSpot.link_url}</b></div>
+                )}
+                {selectedSpot.link_url ? (
+                  <button className="spot-card-cta" onClick={() => handleVisitLink(selectedSpot.link_url)} data-testid="spot-card-visit">
+                    VISIT LINK {getLinkIcon(selectedSpot.link_type)} ↗
+                  </button>
+                ) : (
+                  <button className="spot-card-cta secondary" onClick={handleCloseSpot} data-testid="spot-card-back">
+                    BACK TO THE BOARD
+                  </button>
+                )}
               </>
             ) : (
               <>
                 <div className="spot-card-avail">AVAILABLE</div>
                 <div className="spot-card-price">${selectedSpot.price}</div>
                 <div className="spot-card-row"><span>STATUS</span><b>OPEN FOR CLAIM</b></div>
-                <div className="spot-card-row"><span>POSITION</span><b>ROW {Math.floor((selectedSpot.id - 1) / 6) + 1}, COL {((selectedSpot.id - 1) % 6) + 1}</b></div>
-                <button className="spot-card-cta" data-testid="spot-card-claim">
-                  CLAIM YOUR SPOT →
+                <div className="spot-card-row"><span>POSITION</span><b>ROW {Math.floor((selectedSpot.id - 1) / 5) + 1}, COL {((selectedSpot.id - 1) % 5) + 1}</b></div>
+                <button className="spot-card-cta" onClick={() => setClaimModalSpot(selectedSpot)} data-testid="spot-card-claim">
+                  CLAIM WITH RAZORPAY →
                 </button>
-                <p className="spot-card-note">Checkout unlocks in Phase 5. Demo experience only.</p>
+                <p className="spot-card-note">Instant 3D Board update powered by Supabase & Razorpay.</p>
               </>
             )}
           </div>
+        )}
+
+        {/* Claim Spot Form & Razorpay Payment Modal */}
+        {claimModalSpot && (
+          <ClaimSpotModal
+            spot={claimModalSpot}
+            onClose={() => setClaimModalSpot(null)}
+            onClaimSuccess={handleClaimSuccess}
+          />
         )}
 
         {!isMobile && <LiveActivity onFocusSpot={setSelectedId} />}
@@ -213,23 +293,25 @@ export default function App() {
         <div className="camera-dock" data-testid="camera-dock">
           <span className="dock-label">BOARD CAM <b>●</b></span>
           <button
-            className={!cinematic && selectedId == null ? "selected" : ""}
+            className={cameraMode === "orbit" && selectedId == null ? "selected" : ""}
             onClick={handleEnterBoardCam}
             data-testid="orbit-control"
           >ORBIT</button>
           <button
-            className={cinematic && selectedId == null ? "selected" : ""}
-            onClick={() => { setSelectedId(null); setCinematic(true); }}
+            className={cameraMode === "cinematic" && selectedId == null ? "selected" : ""}
+            onClick={() => { setCameraMode("cinematic"); setSelectedId(null); }}
             data-testid="cinematic-control"
           >CINEMATIC</button>
           <button
-            className={zoomStep !== 0 ? "selected" : ""}
-            onClick={handleZoom}
-            data-testid="zoom-control"
-          >ZOOM <span>◎</span></button>
-          <button className="reset" onClick={handleReset} data-testid="reset-camera-control">RESET</button>
+            className={cameraMode === "sweep" && selectedId == null ? "selected" : ""}
+            onClick={() => { setCameraMode("sweep"); setSelectedId(null); }}
+            data-testid="sweep-control"
+          >360° SWEEP ✈️</button>
+          <button onClick={handleZoom} data-testid="zoom-control">
+            ZOOM {zoomStep > 0 ? `x${zoomStep + 1}` : "⊕"}
+          </button>
+          <button onClick={handleReset} data-testid="reset-control">RESET</button>
         </div>
-        <div className="scroll-cue" data-testid="scroll-cue">SCROLL <span>⌁</span></div>
       </div>
     </main>
   );

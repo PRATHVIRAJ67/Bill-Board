@@ -16,11 +16,28 @@ useGLTF.preload("/models/cars/carglb/source/car_glb.glb");
 useGLTF.preload("/models/cars/mustang-cobra/source/2019 Ford Mustang Cobra Jet.glb");
 useGLTF.preload("/models/cars/mustang-gt3/source/ford_mustang_gt3.glb");
 
+// Model specifications for the 3 real imported GLBs with model-specific normalization
 const TRAFFIC_MODELS = [
-  { name: "carglb", url: "/models/cars/carglb/source/car_glb.glb", rotY: Math.PI, yOffset: 0.0, targetLength: 4.4 },
-  { name: "mustang-cobra", url: "/models/cars/mustang-cobra/source/2019 Ford Mustang Cobra Jet.glb", rotY: Math.PI, yOffset: 0.0, targetLength: 4.4 },
-  { name: "mustang-gt3", url: "/models/cars/mustang-gt3/source/ford_mustang_gt3.glb", rotY: Math.PI, yOffset: 0.0, targetLength: 4.4 },
+  { name: "carglb",        url: "/models/cars/carglb/source/car_glb.glb",                           rotY: Math.PI, targetLength: 4.4, groundOffset: 0.0 },
+  { name: "mustang-cobra", url: "/models/cars/mustang-cobra/source/2019 Ford Mustang Cobra Jet.glb", rotY: Math.PI, targetLength: 4.6, groundOffset: 0.0 },
+  { name: "mustang-gt3",   url: "/models/cars/mustang-gt3/source/ford_mustang_gt3.glb",              rotY: Math.PI, targetLength: 4.5, groundOffset: -0.42 },
 ];
+
+/**
+ * groundVehicleToRoad
+ * -------------------
+ * Adjusts group's Y position by calculating exact world bounding box
+ * and aligning the lowest point with targetRoadY.
+ */
+function groundVehicleToRoad(group, targetRoadY = ROAD_SURFACE_Y) {
+  if (!group) return targetRoadY;
+  group.updateWorldMatrix(true, true);
+  const box = new THREE.Box3().setFromObject(group);
+  if (!isFinite(box.min.y)) return targetRoadY;
+  const correction = targetRoadY - box.min.y;
+  group.position.y += correction;
+  return group.position.y;
+}
 
 /* ------------------------------------------------- Window-lights texture */
 function useCityFacadeTexture() {
@@ -126,19 +143,35 @@ function WetRoad({ isMobile }) {
 
 /* --------------------------------------------------------- Streetlights */
 function Streetlights() {
+  const lightsRef = useRef([]);
+
   const positions = useMemo(() => {
     const arr = [];
     for (let i = 0; i < 9; i++) {
-      arr.push({ x: -14.8, z: -4 - i * 13, side: -1 });
-      arr.push({ x: 14.8, z: -4 - i * 13, side: 1 });
+      arr.push({ x: -14.8, z: 8 - i * 13, side: -1 });
+      arr.push({ x: 14.8, z: 8 - i * 13, side: 1 });
     }
     return arr;
   }, []);
 
+  useFrame((_, delta) => {
+    lightsRef.current.forEach((light) => {
+      if (!light) return;
+      light.position.z += delta * 24; // Scroll backward matching highway forward speed
+      if (light.position.z > 14) {
+        light.position.z -= 117; // Recycle back to horizon
+      }
+    });
+  });
+
   return (
     <group>
       {positions.map((p, i) => (
-        <group key={i} position={[p.x, 0, p.z]}>
+        <group
+          key={i}
+          ref={(node) => { lightsRef.current[i] = node; }}
+          position={[p.x, 0, p.z]}
+        >
           <mesh position={[0, 3.5, 0]}>
             <cylinderGeometry args={[0.07, 0.1, 7.0, 8]} />
             <meshStandardMaterial color="#121a20" metalness={0.75} roughness={0.45} />
@@ -231,88 +264,172 @@ function City() {
   );
 }
 
+
 /* -------------------------------------------------------- GLB Traffic Car */
+
+/**
+ * buildTrafficScene
+ * -----------------
+ * Surgical Pipeline:
+ * 1. Hide embedded shadow quads/planes inside raw GLTF models.
+ * 2. Calculate scale factor over visible geometry.
+ * 3. Search specifically for wheel/tire sub-meshes to find tire contact patch.
+ * 4. Align tire bottom flush to local Y = 0 (applying model-specific groundOffset).
+ */
+function buildTrafficScene(gltf, modelInfo) {
+  const cloned = gltf.scene.clone(true);
+
+  // 1. Normalize Orientation
+  cloned.rotation.y = modelInfo.rotY || 0;
+
+  // 2. Material & Shadow optimization — hide fake embedded GLTF shadow planes
+  cloned.traverse((child) => {
+    if (!child.isMesh) return;
+    
+    const matName = (child.material?.name || child.name || "").toLowerCase();
+    
+    // Hide embedded static fake shadow planes from raw GLTF files (e.g. carglb ground quads)
+    if (matName.includes("shadow") || matName.includes("fake_shadow") || matName.includes("plane_shadow") || matName.includes("ground_shadow")) {
+      child.visible = false;
+      return;
+    }
+
+    child.castShadow = true;
+    child.receiveShadow = true;
+    child.frustumCulled = false;
+
+    if (child.material) {
+      child.material = child.material.clone();
+      const mat = child.material;
+      const isGlass = matName.includes("glass") || matName.includes("window") || matName.includes("wind");
+
+      if (mat.envMapIntensity !== undefined) mat.envMapIntensity = 2.2;
+
+      if (!isGlass) {
+        mat.transparent = false;
+        mat.opacity = 1.0;
+        if (mat.roughness !== undefined) mat.roughness = Math.min(mat.roughness, 0.65);
+      }
+    }
+  });
+
+  // 3. Compute Bounding Box over VISIBLE solid vehicle meshes ONLY
+  cloned.updateMatrix();
+  cloned.updateMatrixWorld(true);
+  const meshBox = new THREE.Box3();
+  cloned.traverse((child) => {
+    if (child.isMesh && child.visible && child.geometry) {
+      child.updateMatrixWorld(true);
+      meshBox.expandByObject(child);
+    }
+  });
+
+  const size = new THREE.Vector3();
+  meshBox.getSize(size);
+
+  // 4. Normalize Scale based on target vehicle length
+  const targetLength = modelInfo.targetLength || 4.4;
+  const longestDim = Math.max(size.x, size.z);
+  let scaleFactor = (longestDim > 0 && isFinite(longestDim)) ? targetLength / longestDim : 1.0;
+  if (!isFinite(scaleFactor) || scaleFactor <= 0) scaleFactor = 1.0;
+  cloned.scale.setScalar(scaleFactor);
+
+  // 5. Force update matrixWorld after scale so child node Box3 calculations reflect scaled coordinates
+  cloned.updateMatrix();
+  cloned.updateMatrixWorld(true);
+
+  // 6. Search for wheel/tire meshes first to get accurate tire contact patch
+  let wheelMinY = Infinity;
+  let allMinY = Infinity;
+
+  cloned.traverse((child) => {
+    if (child.isMesh && child.visible && child.geometry) {
+      child.updateMatrixWorld(true);
+      const box = new THREE.Box3();
+      box.setFromObject(child);
+      if (isFinite(box.min.y)) {
+        if (box.min.y < allMinY) allMinY = box.min.y;
+        const name = (child.name || child.material?.name || "").toLowerCase();
+        if (name.includes("wheel") || name.includes("tire") || name.includes("rim") || name.includes("tyre") || name.includes("rubber") || name.includes("rad")) {
+          if (box.min.y < wheelMinY) wheelMinY = box.min.y;
+        }
+      }
+    }
+  });
+
+  const scaledMeshBox = new THREE.Box3();
+  cloned.traverse((child) => {
+    if (child.isMesh && child.visible && child.geometry) {
+      child.updateMatrixWorld(true);
+      scaledMeshBox.expandByObject(child);
+    }
+  });
+
+  const bottomY = isFinite(wheelMinY) ? wheelMinY : (isFinite(allMinY) ? allMinY : (isFinite(scaledMeshBox.min.y) ? scaledMeshBox.min.y : 0));
+  const centerX = (scaledMeshBox.min.x + scaledMeshBox.max.x) / 2;
+  const centerZ = (scaledMeshBox.min.z + scaledMeshBox.max.z) / 2;
+
+  // Center car horizontally and align tires flush to local Y = 0
+  const groundOffset = modelInfo.groundOffset || 0.0;
+  cloned.position.set(
+    -centerX,
+    -bottomY + groundOffset,
+    -centerZ
+  );
+
+  const pivot = new THREE.Group();
+  pivot.add(cloned);
+  return pivot;
+}
+
 function GLBTrafficCar({ modelIndex }) {
   const modelInfo = TRAFFIC_MODELS[modelIndex % TRAFFIC_MODELS.length];
   const gltf = useGLTF(modelInfo.url);
+  const halfLen = (modelInfo.targetLength || 4.4) / 2;
 
-  const { scene } = useMemo(() => {
-    const cloned = gltf.scene.clone(true);
-
-    // Pivot wrapper to apply correct forward rotation per model
-    const pivot = new THREE.Group();
-    cloned.rotation.y = modelInfo.rotY || 0;
-    pivot.add(cloned);
-
-    // Compute bounding box strictly over visible meshes to find tire contact
-    const rotatedBox = new THREE.Box3();
-    pivot.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-        child.frustumCulled = false;
-        if (child.material) {
-          child.material.envMapIntensity = 2.5;
-          const matName = (child.material.name || child.name || "").toLowerCase();
-          if (!matName.includes("glass") && !matName.includes("window") && !matName.includes("trans")) {
-            child.material.transparent = false;
-            child.material.opacity = 1.0;
-          }
-        }
-        rotatedBox.expandByObject(child);
-      }
-    });
-
-    const rotatedSize = new THREE.Vector3();
-    rotatedBox.getSize(rotatedSize);
-    const rotatedCenter = new THREE.Vector3();
-    rotatedBox.getCenter(rotatedCenter);
-
-    // Safe scale factor computation
-    const maxDim = Math.max(rotatedSize.x, rotatedSize.z, rotatedSize.y);
-    const targetLength = modelInfo.targetLength || 4.4;
-    let scaleFactor = (maxDim > 0 && isFinite(maxDim)) ? targetLength / maxDim : 1.0;
-    if (!isFinite(scaleFactor) || scaleFactor <= 0) scaleFactor = 1.0;
-
-    // Position cloned scene inside pivot so tire contact point is at local y = 0
-    const offX = isFinite(rotatedCenter.x) ? -rotatedCenter.x * scaleFactor : 0;
-    const offY = isFinite(rotatedBox.min.y) ? -rotatedBox.min.y * scaleFactor : 0;
-    const offZ = isFinite(rotatedCenter.z) ? -rotatedCenter.z * scaleFactor : 0;
-
-    cloned.position.set(offX, offY, offZ);
-    cloned.scale.setScalar(scaleFactor);
-
-    return { scene: pivot };
-  }, [gltf, modelInfo]);
+  const scene = useMemo(
+    () => buildTrafficScene(gltf, modelInfo),
+    [gltf, modelInfo]
+  );
 
   return (
     <group>
+      {/* Pivot group with local Y=0 at tire contact patch */}
       <primitive object={scene} />
 
-      {/* Ground Contact Shadow sitting directly on road surface */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]}>
-        <planeGeometry args={[2.0, 4.4]} />
-        <meshBasicMaterial color="#000000" transparent opacity={0.68} depthWrite={false} />
+      {/* Headlights: Controlled, realistic intensity (Front = -Z) */}
+      <pointLight position={[-0.55, 0.5, -halfLen - 0.1]} intensity={3.2} distance={8} color="#fff4e0" castShadow={false} />
+      <pointLight position={[0.55, 0.5, -halfLen - 0.1]} intensity={3.2} distance={8} color="#fff4e0" castShadow={false} />
+
+      {/* Taillights: Subtle red glow (Rear = +Z) */}
+      <pointLight position={[-0.5, 0.48, halfLen + 0.1]} intensity={2.2} distance={4.5} color="#d91e18" castShadow={false} />
+      <pointLight position={[0.5, 0.48, halfLen + 0.1]} intensity={2.2} distance={4.5} color="#d91e18" castShadow={false} />
+
+      {/* Subtle Fill / Rim Light for 75% visual brightness relative to hero car */}
+      <pointLight position={[0, 1.2, 0]} intensity={2.5} distance={4} color="#7a9ab0" castShadow={false} />
+
+      {/* Soft Contact Shadow directly underneath tires (1mm above asphalt) */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]}>
+        <planeGeometry args={[1.9, 4.2]} />
+        <meshBasicMaterial color="#000000" transparent opacity={0.5} depthWrite={false} />
       </mesh>
     </group>
   );
 }
 
 /* -------------------------------------------------------- Traffic Pooling System */
-// 4 safe highway lane centers completely clearing hero supercar at x = -1.25
 const TRAFFIC_LANES = [-6.8, -4.2, 2.4, 6.4];
 
 function Traffic() {
   const POOL_SIZE = 6;
   const vehiclesRef = useRef([]);
 
-  // Fixed vehicle pool initialized once with proper spacing
   const poolData = useMemo(() => {
     const arr = [];
-    const initialZ = [-22, -42, -62, -32, -52, -72];
+    const initialZ = [-30, -50, -70, -40, -60, -80];
     for (let i = 0; i < POOL_SIZE; i++) {
       const lane = TRAFFIC_LANES[i % TRAFFIC_LANES.length];
-      const targetSpeed = 13 + (i % 3) * 2.5;
+      const targetSpeed = 12 + (i % 3) * 2.2;
       arr.push({
         modelIndex: i % TRAFFIC_MODELS.length,
         lane,
@@ -325,53 +442,42 @@ function Traffic() {
   }, []);
 
   useFrame((state, delta) => {
-    const time = state.clock.elapsedTime;
-
     vehiclesRef.current.forEach((veh, i) => {
       if (!veh) return;
       const data = poolData[i];
 
-      // Safe following distance check: detect car ahead in same lane
+      // 1. Speed & Distance cruise logic
       let cruiseSpeed = data.targetSpeed;
       poolData.forEach((other, idx) => {
         if (idx !== i && other.lane === data.lane && other.z < data.z) {
-          const dist = data.z - other.z; // Distance ahead to car in front
+          const dist = data.z - other.z;
           if (dist > 0 && dist < 20) {
             cruiseSpeed = Math.min(cruiseSpeed, other.speed * 0.9);
           }
         }
       });
-
-      // Smooth acceleration / speed buildup
       data.speed = THREE.MathUtils.damp(data.speed, cruiseSpeed, 1.8, delta);
+      // Relative motion: hero car drives at 24.0 units/sec forward, traffic moves relative to hero
+      data.z += delta * (24.0 - data.speed);
 
-      // Frame-rate independent delta time motion: traveling AWAY from camera towards billboard (-Z direction)
-      data.z -= delta * data.speed;
-
-      // Safe recycling: recycle when vehicle reaches dark city horizon (z < -92)
-      if (data.z < -92) {
-        let newZ = 18 + Math.random() * 12;
+      // 2. Recycling at camera rear boundary
+      if (data.z > 14) {
+        let newZ = -92 - Math.random() * 20;
         let newLane = TRAFFIC_LANES[Math.floor(Math.random() * TRAFFIC_LANES.length)];
-
-        // Prevent longitudinal collision overlap with other vehicles in the same lane
         const inSameLane = poolData.filter((v, idx) => idx !== i && v.lane === newLane);
         const tooClose = inSameLane.some((v) => Math.abs(v.z - newZ) < 22);
-        if (tooClose) {
-          newZ += 25;
-        }
+        if (tooClose) newZ -= 25;
 
         data.z = newZ;
         data.lane = newLane;
-        data.targetSpeed = 13 + Math.random() * 5;
-        data.speed = data.targetSpeed * 0.4;
+        data.targetSpeed = 12 + Math.random() * 6;
+        data.speed = data.targetSpeed * 0.8;
       }
 
-      // Smooth lane positioning
+      // 3. Smooth lane positioning — locked 100% to ROAD_SURFACE_Y
       veh.position.x = THREE.MathUtils.damp(veh.position.x, data.lane, 6, delta);
       veh.position.z = data.z;
-
-      // Tires sit EXACTLY on top of the road surface at ROAD_SURFACE_Y (-0.03) with micro-suspension
-      veh.position.y = ROAD_SURFACE_Y + Math.sin(time * 7 + i * 1.5) * 0.002;
+      veh.position.y = ROAD_SURFACE_Y;
     });
   });
 
@@ -390,15 +496,22 @@ function Traffic() {
   );
 }
 
-/* ------------------------------------------------------------ Car (hero GLB - UNCHANGED) */
+/* ------------------------------------------------------------ Car (hero GLB - DYNAMIC DRIVING SIMULATION) */
 function Car({ isMobile }) {
   const position = isMobile ? [-0.4, 0, 4.6] : [-1.25, 0, 1.8];
   const scale = isMobile ? 0.95 : 1.18;
 
   const gltf = useGLTF("/models/ferrari.glb", "https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
+  const wheelsRef = useRef([]);
+
   const scene = useMemo(() => {
     const cloned = gltf.scene.clone(true);
+
+    // Log ALL node names so we know exact wheel identifiers in this GLB
+    const allNames = [];
     cloned.traverse((child) => {
+      if (child.name) allNames.push(`${child.type}: ${child.name} (mat: ${child.material?.name || "-"})`);
+
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
@@ -407,37 +520,58 @@ function Car({ isMobile }) {
 
         if (name.includes("body") || matName.includes("body") || matName.includes("paint") || matName.includes("car")) {
           child.material = new THREE.MeshStandardMaterial({
-            color: "#182430",
-            metalness: 0.94,
-            roughness: 0.14,
-            envMapIntensity: 2.6,
+            color: "#182430", metalness: 0.94, roughness: 0.14, envMapIntensity: 2.6,
           });
         } else if (name.includes("glass") || matName.includes("glass")) {
           child.material = new THREE.MeshStandardMaterial({
-            color: "#050b12",
-            metalness: 0.96,
-            roughness: 0.05,
-            transparent: true,
-            opacity: 0.88,
+            color: "#050b12", metalness: 0.96, roughness: 0.05, transparent: true, opacity: 0.88,
           });
         } else if (name.includes("rim") || name.includes("wheel") || matName.includes("rim")) {
           child.material = new THREE.MeshStandardMaterial({
-            color: "#9ab0be",
-            metalness: 0.98,
-            roughness: 0.16,
+            color: "#9ab0be", metalness: 0.98, roughness: 0.16,
           });
         }
       }
     });
+    console.log("[Ferrari GLB Nodes]", allNames.join("\n"));
     return cloned;
   }, [gltf]);
 
+  // Target exact 4 wheel parent nodes in Ferrari GLB: wheel_fl, wheel_fr, wheel_rl, wheel_rr
+  useEffect(() => {
+    if (!scene) return;
+    const fl = scene.getObjectByName("wheel_fl");
+    const fr = scene.getObjectByName("wheel_fr");
+    const rl = scene.getObjectByName("wheel_rl");
+    const rr = scene.getObjectByName("wheel_rr");
+
+    const wheelNodes = [fl, fr, rl, rr].filter(Boolean);
+    wheelsRef.current = wheelNodes;
+  }, [scene]);
+
   const groupRef = useRef();
-  useFrame((state) => {
+  useFrame((state, delta) => {
     if (groupRef.current) {
       const t = state.clock.elapsedTime;
-      groupRef.current.position.y = position[1] + Math.sin(t * 4.8) * 0.005;
-      groupRef.current.rotation.z = Math.sin(t * 3.2) * 0.002;
+      const heroSpeed = 32.0; // Highway cruising speed
+
+      // 1. Rotate all 4 exact Ferrari wheel parent nodes (wheel_fl, wheel_fr, wheel_rl, wheel_rr)
+      const wheelRad = delta * (heroSpeed / 0.34);
+      wheelsRef.current.forEach((w) => {
+        w.rotation.x += wheelRad;
+      });
+
+      // 2. Realistic driving micro-dynamics (V8 engine vibe + suspension + pitch + steering micro-sway)
+      const engineVibe = Math.sin(t * 34) * 0.0012;
+      const suspensionY = Math.sin(t * 4.2) * 0.0022;
+      const pitchX = Math.sin(t * 1.8) * 0.002;
+      const steerZ = Math.sin(t * 1.2) * 0.003;
+      const swayX = position[0] + Math.sin(t * 0.8) * 0.08;
+
+      groupRef.current.position.x = swayX;
+      groupRef.current.position.y = position[1] + suspensionY + engineVibe;
+      groupRef.current.rotation.x = pitchX;
+      groupRef.current.rotation.z = steerZ;
     }
   });
 
@@ -509,7 +643,7 @@ function InteractivePanel({ spot, index, hoveredId, selectedId, onHover, onSelec
       onClick={(e) => { e.stopPropagation(); onSelect(spot.id); }}
     >
       <mesh castShadow>
-        <boxGeometry args={[2.88, 1.3, 0.08]} />
+        <boxGeometry args={[3.6, 1.9, 0.08]} />
         <meshStandardMaterial
           color={isDimmed ? "#050a0d" : "#0a1115"}
           metalness={0.7}
@@ -520,29 +654,29 @@ function InteractivePanel({ spot, index, hoveredId, selectedId, onHover, onSelec
       </mesh>
       {!spot.claimed && (
         <mesh ref={glowRef} position={[0, 0, 0.05]}>
-          <planeGeometry args={[2.78, 1.2]} />
+          <planeGeometry args={[3.5, 1.8]} />
           <meshBasicMaterial color={cyan} transparent opacity={0.35} depthWrite={false} />
         </mesh>
       )}
       {spot.claimed && (
         <mesh position={[0, 0, 0.045]}>
-          <planeGeometry args={[2.72, 1.15]} />
-          <meshBasicMaterial color={spot.color || "#42616a"} transparent opacity={isDimmed ? 0.18 : 0.32} depthWrite={false} />
+          <planeGeometry args={[3.44, 1.74]} />
+          <meshBasicMaterial color={spot.color || "#42616a"} transparent opacity={isDimmed ? 0.18 : 0.35} depthWrite={false} />
         </mesh>
       )}
-      <Text position={[-1.28, 0.48, 0.09]} fontSize={0.16} color="#dbe7e9" anchorX="left" anchorY="middle">
+      <Text position={[-1.58, 0.72, 0.09]} fontSize={0.22} color="#dbe7e9" anchorX="left" anchorY="middle">
         {String(spot.id).padStart(2, "0")}
       </Text>
       {spot.claimed ? (
-        <Text position={[0, -0.16, 0.09]} fontSize={0.19} color="#f1f8f9" anchorX="center" anchorY="middle" maxWidth={2.5}>
+        <Text position={[0, -0.12, 0.09]} fontSize={0.32} color="#ffffff" anchorX="center" anchorY="middle" maxWidth={3.3}>
           {spot.handle}
         </Text>
       ) : (
         <>
-          <Text position={[0, 0.1, 0.09]} fontSize={0.15} color={cyan} anchorX="center" anchorY="middle" letterSpacing={0.08}>
+          <Text position={[0, 0.25, 0.09]} fontSize={0.22} color={cyan} anchorX="center" anchorY="middle" letterSpacing={0.08}>
             AVAILABLE
           </Text>
-          <Text position={[0, -0.22, 0.09]} fontSize={0.32} color="#ffffff" anchorX="center" anchorY="middle">
+          <Text position={[0, -0.22, 0.09]} fontSize={0.48} color="#ffffff" anchorX="center" anchorY="middle">
             {priceLabel}
           </Text>
         </>
@@ -551,10 +685,11 @@ function InteractivePanel({ spot, index, hoveredId, selectedId, onHover, onSelec
   );
 }
 
-function Panels({ hoveredId, selectedId, onHover, onSelect }) {
+function Panels({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect }) {
+  const spotsList = (spots && spots.length > 0) ? spots : SPOTS;
   return (
     <group position={[0, GRID.panelsY, GRID.panelsZ]}>
-      {SPOTS.map((spot, i) => (
+      {spotsList.map((spot, i) => (
         <InteractivePanel
           key={spot.id}
           spot={spot}
@@ -570,25 +705,25 @@ function Panels({ hoveredId, selectedId, onHover, onSelect }) {
 }
 
 /* ---------------------------------------------------------------- Billboard */
-function Billboard({ hoveredId, selectedId, onHover, onSelect }) {
+function Billboard({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect }) {
   const lamps = useMemo(() => [-12, -8, -4, 0, 4, 8, 12], []);
   return (
-    <group position={[0, 1.2, -28]} scale={1.72}>
+    <group position={[0, 1.2, -28]} scale={1.85}>
       <mesh position={[0, 8.2, 0]} castShadow>
-        <boxGeometry args={[20.2, 8.8, 0.45]} />
+        <boxGeometry args={[21.4, 9.8, 0.45]} />
         <meshStandardMaterial color="#0a1015" metalness={0.84} roughness={0.24} />
       </mesh>
       <mesh position={[0, 8.2, 0.26]}>
-        <boxGeometry args={[19.6, 8.2, 0.06]} />
+        <boxGeometry args={[20.8, 9.2, 0.06]} />
         <meshStandardMaterial color="#04080c" metalness={0.5} roughness={0.3} emissive="#021a26" emissiveIntensity={0.35} />
       </mesh>
 
-      <mesh position={[0, 12.5, 0.36]}><boxGeometry args={[20.3, 0.14, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
-      <mesh position={[0, 3.9, 0.36]}><boxGeometry args={[20.3, 0.14, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
-      <mesh position={[-10.15, 8.2, 0.36]}><boxGeometry args={[0.14, 8.7, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
-      <mesh position={[10.15, 8.2, 0.36]}><boxGeometry args={[0.14, 8.7, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
+      <mesh position={[0, 13.1, 0.36]}><boxGeometry args={[21.5, 0.14, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
+      <mesh position={[0, 3.3, 0.36]}><boxGeometry args={[21.5, 0.14, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
+      <mesh position={[-10.75, 8.2, 0.36]}><boxGeometry args={[0.14, 9.9, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
+      <mesh position={[10.75, 8.2, 0.36]}><boxGeometry args={[0.14, 8.7, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
 
-      {[-9.8, 9.8].map((x) => (
+      {[-10.4, 10.4].map((x) => (
         <mesh key={x} position={[x, 5.1, 0]} castShadow>
           <boxGeometry args={[0.55, 14.5, 0.9]} />
           <meshStandardMaterial color="#24323a" metalness={0.92} roughness={0.28} />
@@ -602,8 +737,8 @@ function Billboard({ hoveredId, selectedId, onHover, onSelect }) {
         </group>
       ))}
       <mesh position={[0, 1.2, 0]} castShadow><boxGeometry args={[1.3, 1.5, 1.4]} /><meshStandardMaterial color="#18242c" metalness={0.88} /></mesh>
-      <mesh position={[0, 2.2, 0]} castShadow><boxGeometry args={[16.2, 0.55, 0.76]} /><meshStandardMaterial color="#1e2a32" metalness={0.9} /></mesh>
-      <mesh position={[0, 14.8, 0]} castShadow><boxGeometry args={[20.8, 0.48, 0.8]} /><meshStandardMaterial color="#1e2a32" metalness={0.9} /></mesh>
+      <mesh position={[0, 2.2, 0]} castShadow><boxGeometry args={[17.2, 0.55, 0.76]} /><meshStandardMaterial color="#1e2a32" metalness={0.9} /></mesh>
+      <mesh position={[0, 14.8, 0]} castShadow><boxGeometry args={[21.8, 0.48, 0.8]} /><meshStandardMaterial color="#1e2a32" metalness={0.9} /></mesh>
 
       {lamps.map((x, i) => (
         <group key={i} position={[x, 13.5, 0.16]}>
@@ -612,19 +747,18 @@ function Billboard({ hoveredId, selectedId, onHover, onSelect }) {
           <mesh position={[0, -0.48, 0.44]}><sphereGeometry args={[0.14, 12, 8]} /><meshBasicMaterial color="#fff8e0" toneMapped={false} /></mesh>
         </group>
       ))}
-      <Panels hoveredId={hoveredId} selectedId={selectedId} onHover={onHover} onSelect={onSelect} />
+      <Panels spots={spots} hoveredId={hoveredId} selectedId={selectedId} onHover={onHover} onSelect={onSelect} />
     </group>
   );
 }
 
 /* ------------------------------------------------------------ SceneCamera */
-function SceneCamera({ cinematic, isMobile, zoomStep, selectedId, resetTick }) {
+function SceneCamera({ cameraMode = "cinematic", isMobile, zoomStep, selectedId, resetTick }) {
   const { camera } = useThree();
   const elapsed = useRef(0);
   const currentLookAt = useRef(new THREE.Vector3(0, isMobile ? 6.8 : 5.2, isMobile ? -20 : -18));
   
-  useEffect(() => { if (!cinematic) elapsed.current = 12; }, [cinematic]);
-  useEffect(() => { elapsed.current = 0; }, [resetTick]);
+  useEffect(() => { elapsed.current = 0; }, [cameraMode, resetTick]);
 
   useFrame((_, delta) => {
     elapsed.current += delta;
@@ -646,7 +780,21 @@ function SceneCamera({ cinematic, isMobile, zoomStep, selectedId, resetTick }) {
       }
     }
 
-    if (cinematic) {
+    if (cameraMode === "sweep") {
+      // Option 2: 360° Panoramic City & Billboard Sweep Flyover
+      const radius = isMobile ? 22 : 16;
+      const angle = elapsed.current * 0.25;
+      const camY = (isMobile ? 3.5 : 2.5) + Math.sin(elapsed.current * 0.3) * 0.8;
+      const targetX = Math.sin(angle) * radius;
+      const targetZ = Math.cos(angle) * radius + (isMobile ? -8 : -10) + zoomOffset;
+
+      camera.position.x = THREE.MathUtils.damp(camera.position.x, targetX, 2.2, delta);
+      camera.position.z = THREE.MathUtils.damp(camera.position.z, targetZ, 2.2, delta);
+      camera.position.y = THREE.MathUtils.damp(camera.position.y, camY, 2.2, delta);
+      currentLookAt.current.set(0, isMobile ? 7.2 : 5.8, -28);
+      camera.lookAt(currentLookAt.current);
+    } else if (cameraMode === "cinematic") {
+      // Option 1: Classic Ferrari Rear View facing Billboard directly
       if (isMobile) {
         const targetZ = 24.5 + zoomOffset;
         camera.position.x = THREE.MathUtils.damp(camera.position.x, 0, 3.5, delta);
@@ -664,11 +812,12 @@ function SceneCamera({ cinematic, isMobile, zoomStep, selectedId, resetTick }) {
       }
     }
   });
+
   return null;
 }
 
 /* -------------------------------------------------------------- HeroScene */
-export default function HeroScene({ cinematic, isMobile, zoomStep = 0, hoveredId, selectedId, onHover, onSelect, resetTick = 0 }) {
+export default function HeroScene({ cameraMode = "cinematic", isMobile, zoomStep = 0, hoveredId, selectedId, onHover, onSelect, resetTick = 0, spots = SPOTS }) {
   return (
     <>
       <Environment preset="night" environmentIntensity={1.5} />
@@ -700,10 +849,10 @@ export default function HeroScene({ cinematic, isMobile, zoomStep = 0, hoveredId
       <Streetlights />
       <Traffic />
       <Car isMobile={isMobile} />
-      <Billboard hoveredId={hoveredId} selectedId={selectedId} onHover={onHover} onSelect={onSelect} />
-      <SceneCamera cinematic={cinematic} isMobile={isMobile} zoomStep={zoomStep} selectedId={selectedId} resetTick={resetTick} />
+      <Billboard spots={spots} hoveredId={hoveredId} selectedId={selectedId} onHover={onHover} onSelect={onSelect} />
+      <SceneCamera cameraMode={cameraMode} isMobile={isMobile} zoomStep={zoomStep} selectedId={selectedId} resetTick={resetTick} />
       <OrbitControls
-        enabled={!cinematic && selectedId == null}
+        enabled={cameraMode === "orbit" && selectedId == null}
         enablePan={false}
         minDistance={isMobile ? 18 : 12}
         maxDistance={isMobile ? 36 : 30}
