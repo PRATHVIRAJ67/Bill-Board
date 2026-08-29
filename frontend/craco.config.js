@@ -98,6 +98,13 @@ let webpackConfig = {
         ],
       };
 
+      webpackConfig.ignoreWarnings = [
+        ...(webpackConfig.ignoreWarnings || []),
+        /Failed to parse source map/,
+        /source-map-loader/,
+        /@mediapipe\/tasks-vision/
+      ];
+
       // Add health check plugin to webpack if enabled
       if (config.enableHealthCheck && healthPluginInstance) {
         webpackConfig.plugins.push(healthPluginInstance);

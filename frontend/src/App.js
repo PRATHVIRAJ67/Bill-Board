@@ -1,6 +1,7 @@
 import { Canvas } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Preload } from "@react-three/drei";
+import * as THREE from "three";
 import HeroScene from "@/components/HeroScene";
 import LiveActivity from "@/components/LiveActivity";
 import { SPOTS } from "@/components/spotData";
@@ -41,8 +42,8 @@ export default function App() {
   const selectedSpot = selectedId != null ? SPOTS.find((s) => s.id === selectedId) : null;
 
   const cameraConfig = isMobile
-    ? { position: [0, 3.0, 24], fov: 52, near: 0.1, far: 220 }
-    : { position: [0, 2.5, 14], fov: 62, near: 0.1, far: 220 };
+    ? { position: [0, 2.4, 18.0], fov: 58, near: 0.1, far: 250 }
+    : { position: [0, 1.85, 7.8], fov: 68, near: 0.1, far: 250 };
 
   const handleZoom = () => setZoomStep((s) => (s + 1) % 3);
   const handleReset = () => {
@@ -57,7 +58,7 @@ export default function App() {
   };
   const handleSelect = (id) => {
     setSelectedId(id);
-    setCinematic(true); // suspend cinematic sway; SceneCamera prioritises focus flight
+    setCinematic(true);
   };
   const handleCloseSpot = () => setSelectedId(null);
 
@@ -65,13 +66,13 @@ export default function App() {
     <main className={`board-app ${isMobile ? "is-mobile" : ""}`} data-testid="board-experience">
       <div className="canvas-stage" data-testid="hero-3d-canvas">
         <Canvas
-          dpr={isMobile ? [1, 1.4] : [1, 1.65]}
-          gl={{ antialias: true, toneMappingExposure: 1.12 }}
+          dpr={isMobile ? [1, 1.35] : [1, 1.65]}
+          gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.28 }}
           shadows={!isMobile}
           camera={cameraConfig}
         >
           <color attach="background" args={["#03060b"]} />
-          <fog attach="fog" args={["#08131e", 28, isMobile ? 110 : 125]} />
+          <fog attach="fog" args={["#081420", 28, isMobile ? 110 : 125]} />
           <Suspense fallback={null}>
             <HeroScene
               cinematic={cinematic}
@@ -145,7 +146,7 @@ export default function App() {
             {stats.total} SPOTS <b>·</b> {stats.claimed} CLAIMED <b>·</b> {stats.available} AVAILABLE <b>·</b> FROM ${stats.minPrice}
           </div>
           <button className="primary-cta" onClick={handleEnterBoardCam} data-testid="board-cam-button">
-            ENTER BOARD CAM <span>↗</span>
+            CLAIM YOUR SPOT <span>↗</span>
           </button>
         </section>
 
@@ -195,7 +196,7 @@ export default function App() {
           </div>
         )}
 
-        <LiveActivity onFocusSpot={setSelectedId} />
+        {!isMobile && <LiveActivity onFocusSpot={setSelectedId} />}
 
         <div className="scene-note" data-testid="scene-note">
           <span className="pulse-dot" /> LIVE SCENE
