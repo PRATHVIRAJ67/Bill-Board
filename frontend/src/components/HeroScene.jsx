@@ -11,17 +11,17 @@ const cyan = "#00d9ff";
 // Exact road surface Y coordinate in world space
 const ROAD_SURFACE_Y = -0.03;
 
-// Preload player Ferrari and 3 traffic GLB models
+// Preload optimized Ferrari GLB model
 useGLTF.preload("/models/ferrari.glb", "https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
-useGLTF.preload("/models/cars/carglb/source/car_glb.glb");
-useGLTF.preload("/models/cars/mustang-cobra/source/2019 Ford Mustang Cobra Jet.glb");
-useGLTF.preload("/models/cars/mustang-gt3/source/ford_mustang_gt3.glb");
 
-// Model specifications for the 3 real imported GLBs with model-specific normalization
+// Traffic vehicle colorways & paint finishes
 const TRAFFIC_MODELS = [
-  { name: "carglb",        url: "/models/cars/carglb/source/car_glb.glb",                           rotY: Math.PI, targetLength: 4.4, groundOffset: 0.0 },
-  { name: "mustang-cobra", url: "/models/cars/mustang-cobra/source/2019 Ford Mustang Cobra Jet.glb", rotY: Math.PI, targetLength: 4.6, groundOffset: 0.0 },
-  { name: "mustang-gt3",   url: "/models/cars/mustang-gt3/source/ford_mustang_gt3.glb",              rotY: Math.PI, targetLength: 4.5, groundOffset: -0.42 },
+  { name: "ferrari-crimson", color: "#c92a2a", metalness: 0.94, roughness: 0.16, targetLength: 4.4, groundOffset: 0.0 },
+  { name: "ferrari-cyan",    color: "#00b4d8", metalness: 0.92, roughness: 0.14, targetLength: 4.4, groundOffset: 0.0 },
+  { name: "ferrari-yellow",  color: "#eab308", metalness: 0.90, roughness: 0.20, targetLength: 4.4, groundOffset: 0.0 },
+  { name: "ferrari-silver",  color: "#94a3b8", metalness: 0.96, roughness: 0.12, targetLength: 4.4, groundOffset: 0.0 },
+  { name: "ferrari-purple",  color: "#7c3aed", metalness: 0.92, roughness: 0.18, targetLength: 4.4, groundOffset: 0.0 },
+  { name: "ferrari-emerald", color: "#059669", metalness: 0.94, roughness: 0.15, targetLength: 4.4, groundOffset: 0.0 },
 ];
 
 /**
@@ -280,16 +280,14 @@ function City() {
 function buildTrafficScene(gltf, modelInfo) {
   const cloned = gltf.scene.clone(true);
 
-  // 1. Normalize Orientation
-  cloned.rotation.y = modelInfo.rotY || 0;
-
-  // 2. Material & Shadow optimization — hide fake embedded GLTF shadow planes
+  // 1. Traverse and customize materials with model-specific colorway
   cloned.traverse((child) => {
     if (!child.isMesh) return;
     
+    const name = (child.name || "").toLowerCase();
     const matName = (child.material?.name || child.name || "").toLowerCase();
-    
-    // Hide embedded static fake shadow planes from raw GLTF files (e.g. carglb ground quads)
+
+    // Hide embedded static fake shadow planes
     if (matName.includes("shadow") || matName.includes("fake_shadow") || matName.includes("plane_shadow") || matName.includes("ground_shadow")) {
       child.visible = false;
       return;
@@ -299,22 +297,31 @@ function buildTrafficScene(gltf, modelInfo) {
     child.receiveShadow = true;
     child.frustumCulled = false;
 
-    if (child.material) {
-      child.material = child.material.clone();
-      const mat = child.material;
-      const isGlass = matName.includes("glass") || matName.includes("window") || matName.includes("wind");
-
-      if (mat.envMapIntensity !== undefined) mat.envMapIntensity = 2.2;
-
-      if (!isGlass) {
-        mat.transparent = false;
-        mat.opacity = 1.0;
-        if (mat.roughness !== undefined) mat.roughness = Math.min(mat.roughness, 0.65);
-      }
+    if (name.includes("body") || matName.includes("body") || matName.includes("paint") || matName.includes("car")) {
+      child.material = new THREE.MeshStandardMaterial({
+        color: modelInfo.color || "#c92a2a",
+        metalness: modelInfo.metalness || 0.94,
+        roughness: modelInfo.roughness || 0.16,
+        envMapIntensity: 2.2,
+      });
+    } else if (name.includes("glass") || matName.includes("glass")) {
+      child.material = new THREE.MeshStandardMaterial({
+        color: "#050b12",
+        metalness: 0.96,
+        roughness: 0.05,
+        transparent: true,
+        opacity: 0.88,
+      });
+    } else if (name.includes("rim") || name.includes("wheel") || matName.includes("rim")) {
+      child.material = new THREE.MeshStandardMaterial({
+        color: "#9ab0be",
+        metalness: 0.98,
+        roughness: 0.16,
+      });
     }
   });
 
-  // 3. Compute Bounding Box over VISIBLE solid vehicle meshes ONLY
+  // 2. Compute Bounding Box over VISIBLE solid vehicle meshes ONLY
   cloned.updateMatrix();
   cloned.updateMatrixWorld(true);
   const meshBox = new THREE.Box3();
@@ -328,18 +335,18 @@ function buildTrafficScene(gltf, modelInfo) {
   const size = new THREE.Vector3();
   meshBox.getSize(size);
 
-  // 4. Normalize Scale based on target vehicle length
+  // 3. Normalize Scale based on target vehicle length
   const targetLength = modelInfo.targetLength || 4.4;
   const longestDim = Math.max(size.x, size.z);
   let scaleFactor = (longestDim > 0 && isFinite(longestDim)) ? targetLength / longestDim : 1.0;
   if (!isFinite(scaleFactor) || scaleFactor <= 0) scaleFactor = 1.0;
   cloned.scale.setScalar(scaleFactor);
 
-  // 5. Force update matrixWorld after scale so child node Box3 calculations reflect scaled coordinates
+  // 4. Force update matrixWorld after scale
   cloned.updateMatrix();
   cloned.updateMatrixWorld(true);
 
-  // 6. Search for wheel/tire meshes first to get accurate tire contact patch
+  // 5. Search for wheel/tire contact patch
   let wheelMinY = Infinity;
   let allMinY = Infinity;
 
@@ -350,8 +357,8 @@ function buildTrafficScene(gltf, modelInfo) {
       box.setFromObject(child);
       if (isFinite(box.min.y)) {
         if (box.min.y < allMinY) allMinY = box.min.y;
-        const name = (child.name || child.material?.name || "").toLowerCase();
-        if (name.includes("wheel") || name.includes("tire") || name.includes("rim") || name.includes("tyre") || name.includes("rubber") || name.includes("rad")) {
+        const n = (child.name || child.material?.name || "").toLowerCase();
+        if (n.includes("wheel") || n.includes("tire") || n.includes("rim") || n.includes("tyre") || n.includes("rubber") || n.includes("rad")) {
           if (box.min.y < wheelMinY) wheelMinY = box.min.y;
         }
       }
@@ -385,7 +392,7 @@ function buildTrafficScene(gltf, modelInfo) {
 
 function GLBTrafficCar({ modelIndex }) {
   const modelInfo = TRAFFIC_MODELS[modelIndex % TRAFFIC_MODELS.length];
-  const gltf = useGLTF(modelInfo.url);
+  const gltf = useGLTF("/models/ferrari.glb", "https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
   const halfLen = (modelInfo.targetLength || 4.4) / 2;
 
   const scene = useMemo(
@@ -406,7 +413,7 @@ function GLBTrafficCar({ modelIndex }) {
       <pointLight position={[-0.5, 0.48, halfLen + 0.1]} intensity={2.2} distance={4.5} color="#d91e18" castShadow={false} />
       <pointLight position={[0.5, 0.48, halfLen + 0.1]} intensity={2.2} distance={4.5} color="#d91e18" castShadow={false} />
 
-      {/* Subtle Fill / Rim Light for 75% visual brightness relative to hero car */}
+      {/* Subtle Fill / Rim Light for visual richness */}
       <pointLight position={[0, 1.2, 0]} intensity={2.5} distance={4} color="#7a9ab0" castShadow={false} />
 
       {/* Soft Contact Shadow directly underneath tires (1mm above asphalt) */}
