@@ -7,33 +7,91 @@ import LiveActivity from "@/components/LiveActivity";
 import ClaimSpotModal from "@/components/ClaimSpotModal";
 import { SPOTS, getLinkIcon } from "@/components/spotData";
 import { fetchLiveSpots } from "@/lib/api";
+import { audioManager } from "@/lib/audioManager";
 import "@/App.css";
 
 const navItems = ["THE BOARD", "EXPLORE", "LIVE", "HOW IT WORKS"];
 
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(max-width: 800px)").matches : false
-  );
+function useScreenState() {
+  const [state, setState] = useState(() => {
+    if (typeof window === "undefined") return { isMobile: false, isPortrait: true };
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const isMobile = w <= 860 || (h <= 500 && w <= 1000);
+    const isPortrait = h >= w;
+    return { isMobile, isPortrait };
+  });
+
   useEffect(() => {
-    const mql = window.matchMedia("(max-width: 800px)");
-    const handler = (e) => setIsMobile(e.matches);
-    mql.addEventListener("change", handler);
-    return () => mql.removeEventListener("change", handler);
+    const handleCheck = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const isMobile = w <= 860 || (h <= 500 && w <= 1000);
+      const isPortrait = h >= w;
+      setState({ isMobile, isPortrait });
+    };
+    window.addEventListener("resize", handleCheck);
+    window.addEventListener("orientationchange", handleCheck);
+    return () => {
+      window.removeEventListener("resize", handleCheck);
+      window.removeEventListener("orientationchange", handleCheck);
+    };
   }, []);
-  return isMobile;
+
+  return state;
 }
 
 export default function App() {
   const [cameraMode, setCameraMode] = useState("cinematic");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [orientationDismissed, setOrientationDismissed] = useState(false);
+  const [soundActive, setSoundActive] = useState(false);
   const [zoomStep, setZoomStep] = useState(0);
   const [hoveredId, setHoveredId] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [resetTick, setResetTick] = useState(0);
   const [spotsList, setSpotsList] = useState(SPOTS);
   const [claimModalSpot, setClaimModalSpot] = useState(null);
-  const isMobile = useIsMobile();
+  const { isMobile, isPortrait } = useScreenState();
+
+  const showOrientationPopup = isMobile && isPortrait && !orientationDismissed;
+
+  // Auto-dismiss orientation popup if user rotates to landscape
+  useEffect(() => {
+    if (isMobile && !isPortrait) {
+      setOrientationDismissed(true);
+    }
+  }, [isMobile, isPortrait]);
+
+  // Global listener to unlock & resume AudioContext on first tap/click
+  useEffect(() => {
+    const handleFirstInteraction = () => {
+      audioManager.init().then((success) => {
+        if (success) {
+          setSoundActive(true);
+        }
+      });
+      window.removeEventListener("click", handleFirstInteraction);
+      window.removeEventListener("touchstart", handleFirstInteraction);
+      window.removeEventListener("keydown", handleFirstInteraction);
+    };
+
+    window.addEventListener("click", handleFirstInteraction);
+    window.addEventListener("touchstart", handleFirstInteraction);
+    window.addEventListener("keydown", handleFirstInteraction);
+
+    return () => {
+      window.removeEventListener("click", handleFirstInteraction);
+      window.removeEventListener("touchstart", handleFirstInteraction);
+      window.removeEventListener("keydown", handleFirstInteraction);
+    };
+  }, []);
+
+  const handleToggleSound = (e) => {
+    e?.stopPropagation();
+    const active = audioManager.toggleMute();
+    setSoundActive(active);
+  };
 
   // Load dynamic spots from backend API & poll periodically
   useEffect(() => {
@@ -62,7 +120,9 @@ export default function App() {
   const selectedSpot = selectedId != null ? spotsList.find((s) => s.id === selectedId) : null;
 
   const cameraConfig = isMobile
-    ? { position: [0, 2.4, 18.0], fov: 58, near: 0.1, far: 250 }
+    ? isPortrait
+      ? { position: [0, 2.0, 10.2], fov: 65, near: 0.1, far: 250 }
+      : { position: [0, 1.8, 7.8], fov: 62, near: 0.1, far: 250 }
     : { position: [0, 1.85, 7.8], fov: 68, near: 0.1, far: 250 };
 
   const handleZoom = () => setZoomStep((s) => (s + 1) % 3);
@@ -108,7 +168,7 @@ export default function App() {
   };
 
   return (
-    <main className={`board-app ${isMobile ? "is-mobile" : ""}`} data-testid="board-experience">
+    <main className={`board-app ${isMobile ? "is-mobile" : ""} ${isPortrait ? "is-portrait" : "is-landscape"}`} data-testid="board-experience">
       <div className="canvas-stage" data-testid="hero-3d-canvas">
         <Canvas
           dpr={isMobile ? [1, 1.35] : [1, 1.65]}
@@ -122,6 +182,7 @@ export default function App() {
             <HeroScene
               cameraMode={cameraMode}
               isMobile={isMobile}
+              isPortrait={isPortrait}
               zoomStep={zoomStep}
               hoveredId={hoveredId}
               selectedId={selectedId}
@@ -153,6 +214,16 @@ export default function App() {
             <i /> LIVE <strong>{stats.claimed} / {stats.total}</strong> CLAIMED
           </div>
           <button
+            className={`sound-toggle ${soundActive ? "active" : ""}`}
+            onClick={handleToggleSound}
+            aria-label={soundActive ? "Mute engine sound" : "Unmute engine sound"}
+            title={soundActive ? "Supercar sound: ON (Click to mute)" : "Supercar sound: OFF (Click to unmute)"}
+            data-testid="sound-toggle-button"
+          >
+            <i className={`sound-dot ${soundActive ? "active" : ""}`} />
+            {soundActive ? "SOUND ON" : "SOUND OFF"}
+          </button>
+          <button
             className={`menu-button ${mobileMenuOpen ? "open" : ""}`}
             aria-label="Open menu"
             aria-expanded={mobileMenuOpen}
@@ -160,6 +231,43 @@ export default function App() {
             data-testid="menu-button"
           ><span /><span /><span /></button>
         </header>
+
+        {/* Orientation Recommendation Popup for Mobile Portrait */}
+        {showOrientationPopup && (
+          <div className="orientation-popup-overlay" data-testid="orientation-popup">
+            <div className="orientation-popup-card">
+              <div className="op-tag">BETTER EXPERIENCE ◈</div>
+              <h2 className="op-title">Rotate for Cinema</h2>
+              <p className="op-desc">
+                For the best cinematic experience, turn your phone sideways.
+              </p>
+              <div className="op-actions">
+                <button
+                  className="op-rotate-btn"
+                  onClick={() => {
+                    try {
+                      if (document.documentElement.requestFullscreen && screen.orientation && screen.orientation.lock) {
+                        document.documentElement.requestFullscreen().then(() => {
+                          screen.orientation.lock("landscape").catch(() => {});
+                        }).catch(() => {});
+                      }
+                    } catch (e) {}
+                  }}
+                  data-testid="op-rotate-action"
+                >
+                  <span className="rotate-icon">↺</span> ROTATE TO LANDSCAPE
+                </button>
+                <button
+                  className="op-continue-btn"
+                  onClick={() => setOrientationDismissed(true)}
+                  data-testid="op-continue-portrait"
+                >
+                  CONTINUE PORTRAIT
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {isMobile && mobileMenuOpen && (
           <div className="mobile-drawer" data-testid="mobile-drawer" onClick={() => setMobileMenuOpen(false)}>

@@ -4,6 +4,7 @@ import { Environment, OrbitControls, Text, MeshReflectorMaterial, useGLTF } from
 import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { SPOTS, GRID, panelWorldPosition } from "./spotData";
+import { audioManager } from "@/lib/audioManager";
 
 const cyan = "#00d9ff";
 
@@ -497,9 +498,12 @@ function Traffic() {
 }
 
 /* ------------------------------------------------------------ Car (hero GLB - DYNAMIC DRIVING SIMULATION) */
-function Car({ isMobile }) {
-  const position = isMobile ? [-0.4, 0, 4.6] : [-1.25, 0, 1.8];
-  const scale = isMobile ? 0.95 : 1.18;
+function Car({ isMobile, isPortrait = true }) {
+  const isMobilePortrait = isMobile && isPortrait;
+  const isMobileLandscape = isMobile && !isPortrait;
+
+  const position = isMobilePortrait ? [0, 0, 3.8] : isMobileLandscape ? [0, 0, 2.0] : [-1.25, 0, 1.8];
+  const scale = isMobilePortrait ? 1.08 : isMobileLandscape ? 1.12 : 1.18;
 
   const gltf = useGLTF("/models/ferrari.glb", "https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
   const wheelsRef = useRef([]);
@@ -566,12 +570,16 @@ function Car({ isMobile }) {
       const suspensionY = Math.sin(t * 4.2) * 0.0022;
       const pitchX = Math.sin(t * 1.8) * 0.002;
       const steerZ = Math.sin(t * 1.2) * 0.003;
-      const swayX = position[0] + Math.sin(t * 0.8) * 0.08;
+      const swayOffset = Math.sin(t * 0.8) * (isMobile ? 0.04 : 0.08);
+      const swayX = position[0] + swayOffset;
 
       groupRef.current.position.x = swayX;
       groupRef.current.position.y = position[1] + suspensionY + engineVibe;
       groupRef.current.rotation.x = pitchX;
       groupRef.current.rotation.z = steerZ;
+
+      // 3. Supercar audio engine update (V8 engine RPM + Turbo spool + Road noise)
+      audioManager.update(delta, heroSpeed, Math.sin(t * 0.5) > 0.6);
     }
   });
 
@@ -705,10 +713,16 @@ function Panels({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect }) {
 }
 
 /* ---------------------------------------------------------------- Billboard */
-function Billboard({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect }) {
+function Billboard({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect, isMobile, isPortrait = true }) {
   const lamps = useMemo(() => [-12, -8, -4, 0, 4, 8, 12], []);
+  const isMobilePortrait = isMobile && isPortrait;
+  const isMobileLandscape = isMobile && !isPortrait;
+
+  const bbPos = isMobilePortrait ? [0, 2.1, -26] : isMobileLandscape ? [0, 1.4, -28] : [0, 1.2, -28];
+  const bbScale = isMobilePortrait ? 1.02 : isMobileLandscape ? 1.55 : 1.85;
+
   return (
-    <group position={[0, 1.2, -28]} scale={1.85}>
+    <group position={bbPos} scale={bbScale}>
       <mesh position={[0, 8.2, 0]} castShadow>
         <boxGeometry args={[21.4, 9.8, 0.45]} />
         <meshStandardMaterial color="#0a1015" metalness={0.84} roughness={0.24} />
@@ -753,10 +767,13 @@ function Billboard({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect }) 
 }
 
 /* ------------------------------------------------------------ SceneCamera */
-function SceneCamera({ cameraMode = "cinematic", isMobile, zoomStep, selectedId, resetTick }) {
+function SceneCamera({ cameraMode = "cinematic", isMobile, isPortrait = true, zoomStep, selectedId, resetTick }) {
   const { camera } = useThree();
   const elapsed = useRef(0);
-  const currentLookAt = useRef(new THREE.Vector3(0, isMobile ? 6.8 : 5.2, isMobile ? -20 : -18));
+  const isMobilePortrait = isMobile && isPortrait;
+  const isMobileLandscape = isMobile && !isPortrait;
+
+  const currentLookAt = useRef(new THREE.Vector3(0, isMobilePortrait ? 4.7 : isMobileLandscape ? 5.0 : 5.2, -18));
   
   useEffect(() => { elapsed.current = 0; }, [cameraMode, resetTick]);
 
@@ -768,7 +785,9 @@ function SceneCamera({ cameraMode = "cinematic", isMobile, zoomStep, selectedId,
       const idx = SPOTS.findIndex((s) => s.id === selectedId);
       if (idx >= 0) {
         const [px, py, pz] = panelWorldPosition(idx);
-        const fx = px * 0.55, fy = py + (isMobile ? 0.6 : 0.4), fz = pz + (isMobile ? 9 : 6);
+        const fx = px * (isMobilePortrait ? 0.35 : 0.55);
+        const fy = py + (isMobilePortrait ? 0.7 : 0.4);
+        const fz = pz + (isMobilePortrait ? 11.5 : 6);
         camera.position.x = THREE.MathUtils.damp(camera.position.x, fx, 2.4, delta);
         camera.position.y = THREE.MathUtils.damp(camera.position.y, fy, 2.4, delta);
         camera.position.z = THREE.MathUtils.damp(camera.position.z, fz, 2.4, delta);
@@ -781,26 +800,33 @@ function SceneCamera({ cameraMode = "cinematic", isMobile, zoomStep, selectedId,
     }
 
     if (cameraMode === "sweep") {
-      // Option 2: 360° Panoramic City & Billboard Sweep Flyover
-      const radius = isMobile ? 22 : 16;
+      // 360° Panoramic City & Billboard Sweep Flyover
+      const radius = isMobilePortrait ? 18 : 16;
       const angle = elapsed.current * 0.25;
-      const camY = (isMobile ? 3.5 : 2.5) + Math.sin(elapsed.current * 0.3) * 0.8;
+      const camY = (isMobilePortrait ? 3.2 : 2.5) + Math.sin(elapsed.current * 0.3) * (isMobilePortrait ? 0.6 : 0.8);
       const targetX = Math.sin(angle) * radius;
-      const targetZ = Math.cos(angle) * radius + (isMobile ? -8 : -10) + zoomOffset;
+      const targetZ = Math.cos(angle) * radius + (isMobilePortrait ? -12 : -10) + zoomOffset;
 
       camera.position.x = THREE.MathUtils.damp(camera.position.x, targetX, 2.2, delta);
       camera.position.z = THREE.MathUtils.damp(camera.position.z, targetZ, 2.2, delta);
       camera.position.y = THREE.MathUtils.damp(camera.position.y, camY, 2.2, delta);
-      currentLookAt.current.set(0, isMobile ? 7.2 : 5.8, -28);
+      currentLookAt.current.set(0, isMobilePortrait ? 5.2 : 5.8, isMobilePortrait ? -27 : -28);
       camera.lookAt(currentLookAt.current);
     } else if (cameraMode === "cinematic") {
-      // Option 1: Classic Ferrari Rear View facing Billboard directly
-      if (isMobile) {
-        const targetZ = 24.5 + zoomOffset;
+      // Classic Ferrari Rear View facing Billboard directly
+      if (isMobilePortrait) {
+        const targetZ = 10.2 + zoomOffset;
         camera.position.x = THREE.MathUtils.damp(camera.position.x, 0, 3.5, delta);
         camera.position.z = THREE.MathUtils.damp(camera.position.z, targetZ, 3.5, delta);
-        camera.position.y = THREE.MathUtils.damp(camera.position.y, 0.85 + Math.sin(elapsed.current * 0.22) * 0.04, 3.5, delta);
-        currentLookAt.current.set(0, 0.8, -20);
+        camera.position.y = THREE.MathUtils.damp(camera.position.y, 2.0 + Math.sin(elapsed.current * 0.22) * 0.04, 3.5, delta);
+        currentLookAt.current.set(0, 4.7, -18);
+        camera.lookAt(currentLookAt.current);
+      } else if (isMobileLandscape) {
+        const targetZ = 7.8 + zoomOffset;
+        camera.position.x = THREE.MathUtils.damp(camera.position.x, 0, 3.5, delta);
+        camera.position.z = THREE.MathUtils.damp(camera.position.z, targetZ, 3.5, delta);
+        camera.position.y = THREE.MathUtils.damp(camera.position.y, 1.8 + Math.sin(elapsed.current * 0.22) * 0.04, 3.5, delta);
+        currentLookAt.current.set(0, 5.0, -18);
         camera.lookAt(currentLookAt.current);
       } else {
         const targetZ = 7.8 + zoomOffset;
@@ -817,7 +843,7 @@ function SceneCamera({ cameraMode = "cinematic", isMobile, zoomStep, selectedId,
 }
 
 /* -------------------------------------------------------------- HeroScene */
-export default function HeroScene({ cameraMode = "cinematic", isMobile, zoomStep = 0, hoveredId, selectedId, onHover, onSelect, resetTick = 0, spots = SPOTS }) {
+export default function HeroScene({ cameraMode = "cinematic", isMobile, isPortrait = true, zoomStep = 0, hoveredId, selectedId, onHover, onSelect, resetTick = 0, spots = SPOTS }) {
   return (
     <>
       <Environment preset="night" environmentIntensity={1.5} />
@@ -848,17 +874,17 @@ export default function HeroScene({ cameraMode = "cinematic", isMobile, zoomStep
       <City />
       <Streetlights />
       <Traffic />
-      <Car isMobile={isMobile} />
-      <Billboard spots={spots} hoveredId={hoveredId} selectedId={selectedId} onHover={onHover} onSelect={onSelect} />
-      <SceneCamera cameraMode={cameraMode} isMobile={isMobile} zoomStep={zoomStep} selectedId={selectedId} resetTick={resetTick} />
+      <Car isMobile={isMobile} isPortrait={isPortrait} />
+      <Billboard spots={spots} hoveredId={hoveredId} selectedId={selectedId} onHover={onHover} onSelect={onSelect} isMobile={isMobile} isPortrait={isPortrait} />
+      <SceneCamera cameraMode={cameraMode} isMobile={isMobile} isPortrait={isPortrait} zoomStep={zoomStep} selectedId={selectedId} resetTick={resetTick} />
       <OrbitControls
         enabled={cameraMode === "orbit" && selectedId == null}
         enablePan={false}
-        minDistance={isMobile ? 18 : 12}
-        maxDistance={isMobile ? 36 : 30}
-        maxPolarAngle={isMobile ? 1.42 : 1.52}
-        minPolarAngle={isMobile ? 1.05 : 0.8}
-        target={[0, isMobile ? 8 : 8, -30]}
+        minDistance={isMobile ? (isPortrait ? 14 : 10) : 12}
+        maxDistance={isMobile ? (isPortrait ? 32 : 28) : 30}
+        maxPolarAngle={isMobile ? (isPortrait ? 1.48 : 1.5) : 1.52}
+        minPolarAngle={isMobile ? (isPortrait ? 0.9 : 0.8) : 0.8}
+        target={isMobile ? (isPortrait ? [0, 6.0, -27] : [0, 6.5, -28]) : [0, 8, -30]}
       />
 
       <EffectComposer disableNormalPass multisampling={0}>
