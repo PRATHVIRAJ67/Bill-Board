@@ -94,7 +94,11 @@ export default function ClaimSpotModal({ spot, onClose, onClaimSuccess }) {
 
   return (
     <div className="claim-modal-overlay" onClick={onClose} data-testid="claim-modal-overlay">
-      <div className="claim-modal-card" onClick={(e) => e.stopPropagation()} data-testid="claim-modal-card">
+      <div
+        className="claim-modal-card"
+        onClick={(e) => e.stopPropagation()}
+        data-testid="claim-modal-card"
+      >
         <button
           type="button"
           className="claim-modal-close"
@@ -126,9 +130,13 @@ export default function ClaimSpotModal({ spot, onClose, onClaimSuccess }) {
               placeholder="@mybrand or My Startup"
               value={handle}
               onChange={(e) => setHandle(e.target.value)}
+              onKeyDown={(e) => e.stopPropagation()}
               required
               maxLength={24}
-              autoFocus
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck="false"
             />
           </div>
 
@@ -161,6 +169,11 @@ export default function ClaimSpotModal({ spot, onClose, onClaimSuccess }) {
               }
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}
+              onKeyDown={(e) => e.stopPropagation()}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck="false"
             />
             <small>When visitors click your spot on the 3D board, they will be directed here.</small>
           </div>

@@ -653,9 +653,22 @@ function InteractivePanel({ spot, index, hoveredId, selectedId, onHover, onSelec
     <group
       ref={groupRef}
       position={[x, y, 0]}
-      onPointerOver={(e) => { e.stopPropagation(); onHover(spot.id); document.body.style.cursor = "pointer"; }}
-      onPointerOut={(e) => { e.stopPropagation(); onHover(null); document.body.style.cursor = ""; }}
-      onClick={(e) => { e.stopPropagation(); onSelect(spot.id); }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        onHover(spot.id);
+        audioManager.playHover(spot.id);
+        document.body.style.cursor = "pointer";
+      }}
+      onPointerOut={(e) => {
+        e.stopPropagation();
+        onHover(null);
+        document.body.style.cursor = "";
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        audioManager.playSelect();
+        onSelect(spot.id);
+      }}
     >
       <mesh castShadow>
         <boxGeometry args={[3.6, 1.9, 0.08]} />
@@ -725,8 +738,8 @@ function Billboard({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect, is
   const isMobilePortrait = isMobile && isPortrait;
   const isMobileLandscape = isMobile && !isPortrait;
 
-  const bbPos = isMobilePortrait ? [0, 2.1, -26] : isMobileLandscape ? [0, 1.4, -28] : [0, 1.2, -28];
-  const bbScale = isMobilePortrait ? 1.02 : isMobileLandscape ? 1.55 : 1.85;
+  const bbPos = isMobilePortrait ? [0, 2.1, -26] : isMobileLandscape ? [0, 1.2, -21] : [0, 1.2, -28];
+  const bbScale = isMobilePortrait ? 1.02 : isMobileLandscape ? 2.1 : 1.85;
 
   return (
     <group position={bbPos} scale={bbScale}>
@@ -793,8 +806,8 @@ function SceneCamera({ cameraMode = "cinematic", isMobile, isPortrait = true, zo
       if (idx >= 0) {
         const [px, py, pz] = panelWorldPosition(idx);
         const fx = px * (isMobilePortrait ? 0.35 : 0.55);
-        const fy = py + (isMobilePortrait ? 0.7 : 0.4);
-        const fz = pz + (isMobilePortrait ? 11.5 : 6);
+        const fy = py + (isMobilePortrait ? 0.8 : 0.5);
+        const fz = pz + (isMobilePortrait ? 13.2 : 8.2);
         camera.position.x = THREE.MathUtils.damp(camera.position.x, fx, 2.4, delta);
         camera.position.y = THREE.MathUtils.damp(camera.position.y, fy, 2.4, delta);
         camera.position.z = THREE.MathUtils.damp(camera.position.z, fz, 2.4, delta);
@@ -808,9 +821,9 @@ function SceneCamera({ cameraMode = "cinematic", isMobile, isPortrait = true, zo
 
     if (cameraMode === "sweep") {
       // 360° Panoramic City & Billboard Sweep Flyover
-      const radius = isMobilePortrait ? 18 : 16;
+      const radius = isMobilePortrait ? 19 : 17.5;
       const angle = elapsed.current * 0.25;
-      const camY = (isMobilePortrait ? 3.2 : 2.5) + Math.sin(elapsed.current * 0.3) * (isMobilePortrait ? 0.6 : 0.8);
+      const camY = (isMobilePortrait ? 3.4 : 2.7) + Math.sin(elapsed.current * 0.3) * (isMobilePortrait ? 0.6 : 0.8);
       const targetX = Math.sin(angle) * radius;
       const targetZ = Math.cos(angle) * radius + (isMobilePortrait ? -12 : -10) + zoomOffset;
 
@@ -822,24 +835,24 @@ function SceneCamera({ cameraMode = "cinematic", isMobile, isPortrait = true, zo
     } else if (cameraMode === "cinematic") {
       // Classic Ferrari Rear View facing Billboard directly
       if (isMobilePortrait) {
-        const targetZ = 10.2 + zoomOffset;
+        const targetZ = 10.8 + zoomOffset;
         camera.position.x = THREE.MathUtils.damp(camera.position.x, 0, 3.5, delta);
         camera.position.z = THREE.MathUtils.damp(camera.position.z, targetZ, 3.5, delta);
-        camera.position.y = THREE.MathUtils.damp(camera.position.y, 2.0 + Math.sin(elapsed.current * 0.22) * 0.04, 3.5, delta);
+        camera.position.y = THREE.MathUtils.damp(camera.position.y, 2.1 + Math.sin(elapsed.current * 0.22) * 0.04, 3.5, delta);
         currentLookAt.current.set(0, 4.7, -18);
         camera.lookAt(currentLookAt.current);
       } else if (isMobileLandscape) {
-        const targetZ = 7.8 + zoomOffset;
+        const targetZ = 5.6 + zoomOffset;
         camera.position.x = THREE.MathUtils.damp(camera.position.x, 0, 3.5, delta);
         camera.position.z = THREE.MathUtils.damp(camera.position.z, targetZ, 3.5, delta);
-        camera.position.y = THREE.MathUtils.damp(camera.position.y, 1.8 + Math.sin(elapsed.current * 0.22) * 0.04, 3.5, delta);
-        currentLookAt.current.set(0, 5.0, -18);
+        camera.position.y = THREE.MathUtils.damp(camera.position.y, 1.4 + Math.sin(elapsed.current * 0.22) * 0.04, 3.5, delta);
+        currentLookAt.current.set(0, 3.8, -17);
         camera.lookAt(currentLookAt.current);
       } else {
-        const targetZ = 7.8 + zoomOffset;
+        const targetZ = 8.4 + zoomOffset;
         camera.position.x = THREE.MathUtils.damp(camera.position.x, 0, 3.5, delta);
         camera.position.z = THREE.MathUtils.damp(camera.position.z, targetZ, 3.5, delta);
-        camera.position.y = THREE.MathUtils.damp(camera.position.y, 1.85 + Math.sin(elapsed.current * 0.22) * 0.04, 3.5, delta);
+        camera.position.y = THREE.MathUtils.damp(camera.position.y, 1.9 + Math.sin(elapsed.current * 0.22) * 0.04, 3.5, delta);
         currentLookAt.current.set(0, 5.2, -18);
         camera.lookAt(currentLookAt.current);
       }

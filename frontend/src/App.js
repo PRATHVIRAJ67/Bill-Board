@@ -122,44 +122,57 @@ export default function App() {
   const cameraConfig = isMobile
     ? isPortrait
       ? { position: [0, 2.0, 10.2], fov: 65, near: 0.1, far: 250 }
-      : { position: [0, 1.8, 7.8], fov: 62, near: 0.1, far: 250 }
+      : { position: [0, 1.4, 5.6], fov: 56, near: 0.1, far: 250 }
     : { position: [0, 1.85, 7.8], fov: 68, near: 0.1, far: 250 };
 
-  const handleZoom = () => setZoomStep((s) => (s + 1) % 3);
+  const handleZoom = () => {
+    audioManager.playAction();
+    setZoomStep((s) => (s + 1) % 3);
+  };
   const handleReset = () => {
+    audioManager.playAction();
     setSelectedId(null);
     setZoomStep(0);
     setCameraMode("cinematic");
     setResetTick((t) => t + 1);
   };
   const handleEnterBoardCam = () => {
+    audioManager.playAction();
     setCameraMode("orbit");
     setSelectedId(null);
   };
 
   const handleSelect = (id) => {
     const spot = spotsList.find((s) => s.id === id);
+    setSelectedId(id);
     if (spot && !spot.claimed) {
       setClaimModalSpot(spot);
     } else {
-      setSelectedId(id);
       setCameraMode("cinematic");
     }
   };
 
   const handleOpenClaimFirstAvailable = () => {
+    audioManager.playAction();
     const avail = spotsList.find((s) => !s.claimed) || spotsList[0];
-    setClaimModalSpot(avail);
+    if (avail) {
+      setSelectedId(avail.id);
+      setClaimModalSpot(avail);
+    }
   };
 
   const handleClaimSuccess = (updatedSpot) => {
+    audioManager.playSelect();
     setSpotsList((prev) =>
       prev.map((s) => (s.id === updatedSpot.id ? { ...s, ...updatedSpot } : s))
     );
     setSelectedId(updatedSpot.id);
   };
 
-  const handleCloseSpot = () => setSelectedId(null);
+  const handleCloseSpot = () => {
+    audioManager.playAction();
+    setSelectedId(null);
+  };
 
   const handleVisitLink = (url) => {
     if (!url) return;
@@ -216,12 +229,14 @@ export default function App() {
           <button
             className={`sound-toggle ${soundActive ? "active" : ""}`}
             onClick={handleToggleSound}
-            aria-label={soundActive ? "Mute engine sound" : "Unmute engine sound"}
-            title={soundActive ? "Supercar sound: ON (Click to mute)" : "Supercar sound: OFF (Click to unmute)"}
+            aria-label={soundActive ? "Mute ambient audio" : "Unmute ambient audio"}
+            title={soundActive ? "Ambient Chill Soundscape: ACTIVE (Click to mute)" : "Ambient Audio: MUTED (Click to activate)"}
             data-testid="sound-toggle-button"
           >
-            <i className={`sound-dot ${soundActive ? "active" : ""}`} />
-            {soundActive ? "SOUND ON" : "SOUND OFF"}
+            <div className={`sound-eq-bars ${soundActive ? "active" : ""}`}>
+              <span /><span /><span />
+            </div>
+            {soundActive ? "AMBIENT ON" : "AUDIO OFF"}
           </button>
           <button
             className={`menu-button ${mobileMenuOpen ? "open" : ""}`}
@@ -375,15 +390,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Claim Spot Form & Razorpay Payment Modal */}
-        {claimModalSpot && (
-          <ClaimSpotModal
-            spot={claimModalSpot}
-            onClose={() => setClaimModalSpot(null)}
-            onClaimSuccess={handleClaimSuccess}
-          />
-        )}
-
         {!isMobile && <LiveActivity onFocusSpot={setSelectedId} />}
 
         <div className="scene-note" data-testid="scene-note">
@@ -409,18 +415,27 @@ export default function App() {
             className={cameraMode === "cinematic" && selectedId == null ? "selected" : ""}
             onClick={() => { setCameraMode("cinematic"); setSelectedId(null); }}
             data-testid="cinematic-control"
-          >CINEMATIC</button>
+          >{isMobile ? "CINEMA" : "CINEMATIC"}</button>
           <button
             className={cameraMode === "sweep" && selectedId == null ? "selected" : ""}
             onClick={() => { setCameraMode("sweep"); setSelectedId(null); }}
             data-testid="sweep-control"
-          >360° SWEEP ✈️</button>
+          >{isMobile ? "SWEEP 360°" : "360° SWEEP ✈️"}</button>
           <button onClick={handleZoom} data-testid="zoom-control">
             ZOOM {zoomStep > 0 ? `x${zoomStep + 1}` : "⊕"}
           </button>
           <button onClick={handleReset} data-testid="reset-control">RESET</button>
         </div>
       </div>
+
+      {/* Claim Spot Form & Razorpay Payment Modal (Top Level) */}
+      {claimModalSpot && (
+        <ClaimSpotModal
+          spot={claimModalSpot}
+          onClose={() => setClaimModalSpot(null)}
+          onClaimSuccess={handleClaimSuccess}
+        />
+      )}
     </main>
   );
 }

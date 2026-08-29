@@ -1,56 +1,54 @@
 /**
- * Web Audio Supercar Sound Engine for The Board
- * ---------------------------------------------
- * Procedural synthesis engine for realistic, subtle supercar driving audio:
- * - V8 / Twin-Turbo Engine Cylinder Pulse Synthesis
- * - Exhaust Resonator & Lowpass Filtering
- * - Turbo Compressor Spool & Blow-Off Valve
- * - Wet Road / Tire Friction
- * - Master Limiter & Smooth Crossfades
- * - Guaranteed browser audio unlocking on first user interaction
+ * Web Audio Ambient Chill Soundscape & SFX Engine for The Board
+ * -------------------------------------------------------------
+ * Replaces harsh engine drone with a light, futuristic, and relaxing soundscape:
+ * - Minimal Chill Ambient: Warm neon chords, soft atmospheric night breeze, and sleek electric hover tone.
+ * - Interactive Crystal Chimes: Melodic pentatonic chimes on spot hover & holographic select SFX.
+ * - Non-intrusive, aesthetic, smooth fades, and zero-pop audio context unlocking.
  */
 
-class SupercarSoundEngine {
+class AmbientSoundEngine {
   constructor() {
     this.ctx = null;
     this.masterGain = null;
-    this.engineGain = null;
-    this.turboGain = null;
-    this.roadGain = null;
+    this.ambientGain = null;
+    this.breezeGain = null;
+    this.gliderGain = null;
+    this.sfxGain = null;
     this.limiter = null;
 
-    // Engine Oscillators
-    this.oscFundamental = null;
-    this.oscSub = null;
-    this.oscHarmonic = null;
-    this.engineFilter = null;
+    // Ambient Pad Chords (Warm Cyber-Jazz / Ambient Night Chords)
+    this.padOscs = [];
+    this.padFilter = null;
+    this.padLfo = null;
+    this.padLfoGain = null;
 
-    // Turbo
-    this.turboNoise = null;
-    this.turboFilter = null;
-    this.turboTone = null;
+    // Soft City Breeze / Aero Wind
+    this.breezeNoise = null;
+    this.breezeFilter = null;
 
-    // Road
-    this.roadNoise = null;
-    this.roadFilter = null;
+    // Sleek Electric Glider Hum
+    this.gliderOsc = null;
+    this.gliderSub = null;
+    this.gliderFilter = null;
 
     this.isInitialized = false;
     this.isPlaying = false;
     this.isMuted = false;
 
-    // Target Gains (Audible but subtle mix)
-    this.TARGET_MASTER = 0.32;
-    this.TARGET_ENGINE = 0.28;
-    this.TARGET_TURBO = 0.12;
-    this.TARGET_ROAD = 0.12;
+    // Refined volumes (Light, pleasant, atmospheric)
+    this.TARGET_MASTER = 0.28;
+    this.TARGET_AMBIENT = 0.18;
+    this.TARGET_BREEZE = 0.10;
+    this.TARGET_GLIDER = 0.08;
+    this.TARGET_SFX = 0.22;
 
-    this.currentRPM = 2200;
-    this.targetRPM = 2200;
-    this.throttle = 0.35;
+    this.lastHoverTime = 0;
+    this.pentatonicScale = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5]; // C5, D5, E5, G5, A5, C6
   }
 
   /**
-   * Initializes the AudioContext on user interaction
+   * Initializes AudioContext on user interaction
    */
   async init() {
     if (this.isInitialized && this.ctx) {
@@ -71,29 +69,33 @@ class SupercarSoundEngine {
 
       // Master Chain with Dynamics Compressor (Limiter)
       this.limiter = this.ctx.createDynamicsCompressor();
-      this.limiter.threshold.setValueAtTime(-4, this.ctx.currentTime);
-      this.limiter.knee.setValueAtTime(8, this.ctx.currentTime);
-      this.limiter.ratio.setValueAtTime(8, this.ctx.currentTime);
+      this.limiter.threshold.setValueAtTime(-6, this.ctx.currentTime);
+      this.limiter.knee.setValueAtTime(6, this.ctx.currentTime);
+      this.limiter.ratio.setValueAtTime(6, this.ctx.currentTime);
       this.limiter.attack.setValueAtTime(0.003, this.ctx.currentTime);
-      this.limiter.release.setValueAtTime(0.15, this.ctx.currentTime);
+      this.limiter.release.setValueAtTime(0.12, this.ctx.currentTime);
 
       this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
-      this.masterGain.gain.linearRampToValueAtTime(this.TARGET_MASTER, this.ctx.currentTime + 0.3);
+      this.masterGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+      this.masterGain.gain.linearRampToValueAtTime(this.TARGET_MASTER, this.ctx.currentTime + 0.4);
+
+      this.sfxGain = this.ctx.createGain();
+      this.sfxGain.gain.setValueAtTime(this.TARGET_SFX, this.ctx.currentTime);
+      this.sfxGain.connect(this.masterGain);
 
       this.masterGain.connect(this.limiter);
       this.limiter.connect(this.ctx.destination);
 
-      // Build Sub-systems
-      this._buildEngine();
-      this._buildTurbo();
-      this._buildRoad();
+      // Build Subsystems
+      this._buildAmbientPad();
+      this._buildCityBreeze();
+      this._buildElectricGlider();
 
       this.isInitialized = true;
       this.isPlaying = true;
       this.isMuted = false;
 
-      console.log("[AudioEngine] Supercar Web Audio started successfully (state:", this.ctx.state, ")");
+      console.log("[AudioEngine] Chill Ambient Soundscape initialized (AudioContext:", this.ctx.state, ")");
       return true;
     } catch (e) {
       console.warn("[AudioEngine] AudioContext init error:", e);
@@ -102,116 +104,59 @@ class SupercarSoundEngine {
   }
 
   /**
-   * Procedural V8 Engine Sound
+   * Warm, soothing cyber ambient chord pad (D#m9 / Bb atmospheric resonance)
    */
-  _buildEngine() {
+  _buildAmbientPad() {
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
 
-    this.engineGain = this.ctx.createGain();
-    this.engineGain.gain.setValueAtTime(this.TARGET_ENGINE, now);
+    this.ambientGain = this.ctx.createGain();
+    this.ambientGain.gain.setValueAtTime(this.TARGET_AMBIENT, now);
 
-    // Filter modeling exhaust and engine chamber
-    this.engineFilter = this.ctx.createBiquadFilter();
-    this.engineFilter.type = "lowpass";
-    this.engineFilter.frequency.setValueAtTime(280, now);
-    this.engineFilter.Q.setValueAtTime(2.2, now);
+    this.padFilter = this.ctx.createBiquadFilter();
+    this.padFilter.type = "lowpass";
+    this.padFilter.frequency.setValueAtTime(420, now);
+    this.padFilter.Q.setValueAtTime(2.0, now);
 
-    // Fundamental V8 cylinder pulse (Sawtooth)
-    this.oscFundamental = this.ctx.createOscillator();
-    this.oscFundamental.type = "sawtooth";
-    this.oscFundamental.frequency.setValueAtTime(42, now);
+    // LFO for slow breathing filter movement
+    this.padLfo = this.ctx.createOscillator();
+    this.padLfo.frequency.setValueAtTime(0.14, now); // Slow 7-second breath
+    this.padLfoGain = this.ctx.createGain();
+    this.padLfoGain.gain.setValueAtTime(140, now);
+    this.padLfo.connect(this.padLfoGain);
+    this.padLfoGain.connect(this.padFilter.frequency);
+    this.padLfo.start(now);
 
-    // Deep Sub-rumble (Triangle)
-    this.oscSub = this.ctx.createOscillator();
-    this.oscSub.type = "triangle";
-    this.oscSub.frequency.setValueAtTime(21, now);
+    // Chord frequencies (D#3, A#3, F4, G#4, C#5 for a lush, floating cyber chord)
+    const chordFreqs = [155.56, 233.08, 349.23, 415.3, 554.37];
 
-    // Higher harmonic pulse (Sawtooth)
-    this.oscHarmonic = this.ctx.createOscillator();
-    this.oscHarmonic.type = "sawtooth";
-    this.oscHarmonic.frequency.setValueAtTime(84, now);
+    this.padOscs = chordFreqs.map((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      osc.type = idx % 2 === 0 ? "sine" : "triangle";
+      osc.frequency.setValueAtTime(freq + (Math.random() - 0.5) * 0.8, now); // subtle detune
 
-    // Subtle distortion curve for exhaust combustion
-    const waveshaper = this.ctx.createWaveShaper();
-    waveshaper.curve = this._makeDistortionCurve(18);
+      const oscGain = this.ctx.createGain();
+      oscGain.gain.setValueAtTime(0.24 / chordFreqs.length, now);
 
-    const subGain = this.ctx.createGain();
-    subGain.gain.setValueAtTime(0.7, now);
-    this.oscSub.connect(subGain);
+      osc.connect(oscGain);
+      oscGain.connect(this.padFilter);
+      osc.start(now);
+      return osc;
+    });
 
-    const harmGain = this.ctx.createGain();
-    harmGain.gain.setValueAtTime(0.35, now);
-    this.oscHarmonic.connect(harmGain);
-
-    this.oscFundamental.connect(waveshaper);
-    subGain.connect(waveshaper);
-    harmGain.connect(waveshaper);
-
-    waveshaper.connect(this.engineFilter);
-    this.engineFilter.connect(this.engineGain);
-    this.engineGain.connect(this.masterGain);
-
-    this.oscFundamental.start(now);
-    this.oscSub.start(now);
-    this.oscHarmonic.start(now);
+    this.padFilter.connect(this.ambientGain);
+    this.ambientGain.connect(this.masterGain);
   }
 
   /**
-   * Turbocharger Spool & Air Intake
+   * Soft City Breeze & Aero Wind (Replaces harsh road noise)
    */
-  _buildTurbo() {
+  _buildCityBreeze() {
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
 
-    this.turboGain = this.ctx.createGain();
-    this.turboGain.gain.setValueAtTime(this.TARGET_TURBO * 0.4, now);
-
-    // High Whistle Sine Tone
-    this.turboTone = this.ctx.createOscillator();
-    this.turboTone.type = "sine";
-    this.turboTone.frequency.setValueAtTime(1650, now);
-
-    // Air flow noise buffer
-    const bufferSize = this.ctx.sampleRate * 2;
-    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-    const output = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      output[i] = Math.random() * 2 - 1;
-    }
-
-    this.turboNoise = this.ctx.createBufferSource();
-    this.turboNoise.buffer = noiseBuffer;
-    this.turboNoise.loop = true;
-
-    this.turboFilter = this.ctx.createBiquadFilter();
-    this.turboFilter.type = "bandpass";
-    this.turboFilter.frequency.setValueAtTime(2200, now);
-    this.turboFilter.Q.setValueAtTime(4.5, now);
-
-    const toneGain = this.ctx.createGain();
-    toneGain.gain.setValueAtTime(0.25, now);
-    this.turboTone.connect(toneGain);
-
-    toneGain.connect(this.turboGain);
-    this.turboNoise.connect(this.turboFilter);
-    this.turboFilter.connect(this.turboGain);
-
-    this.turboGain.connect(this.masterGain);
-
-    this.turboTone.start(now);
-    this.turboNoise.start(now);
-  }
-
-  /**
-   * Road / Tire Surface Contact
-   */
-  _buildRoad() {
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
-
-    this.roadGain = this.ctx.createGain();
-    this.roadGain.gain.setValueAtTime(this.TARGET_ROAD, now);
+    this.breezeGain = this.ctx.createGain();
+    this.breezeGain.gain.setValueAtTime(this.TARGET_BREEZE, now);
 
     const bufferSize = this.ctx.sampleRate * 2;
     const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
@@ -219,82 +164,193 @@ class SupercarSoundEngine {
     let lastOut = 0.0;
     for (let i = 0; i < bufferSize; i++) {
       const white = Math.random() * 2 - 1;
-      output[i] = (lastOut + 0.02 * white) / 1.02; // Pink-ish noise
+      output[i] = (lastOut + 0.02 * white) / 1.02; // Pink noise
       lastOut = output[i];
     }
 
-    this.roadNoise = this.ctx.createBufferSource();
-    this.roadNoise.buffer = noiseBuffer;
-    this.roadNoise.loop = true;
+    this.breezeNoise = this.ctx.createBufferSource();
+    this.breezeNoise.buffer = noiseBuffer;
+    this.breezeNoise.loop = true;
 
-    this.roadFilter = this.ctx.createBiquadFilter();
-    this.roadFilter.type = "lowpass";
-    this.roadFilter.frequency.setValueAtTime(320, now);
-    this.roadFilter.Q.setValueAtTime(1.0, now);
+    this.breezeFilter = this.ctx.createBiquadFilter();
+    this.breezeFilter.type = "bandpass";
+    this.breezeFilter.frequency.setValueAtTime(360, now);
+    this.breezeFilter.Q.setValueAtTime(1.2, now);
 
-    this.roadNoise.connect(this.roadFilter);
-    this.roadFilter.connect(this.roadGain);
-    this.roadGain.connect(this.masterGain);
+    this.breezeNoise.connect(this.breezeFilter);
+    this.breezeFilter.connect(this.breezeGain);
+    this.breezeGain.connect(this.masterGain);
 
-    this.roadNoise.start(now);
+    this.breezeNoise.start(now);
   }
 
   /**
-   * Distortion curve generator
+   * Sleek Futuristic Electric Glider Hum (Ultra-light, smooth purr)
    */
-  _makeDistortionCurve(amount = 20) {
-    const k = amount;
-    const n_samples = 44100;
-    const curve = new Float32Array(n_samples);
-    const deg = Math.PI / 180;
-    for (let i = 0; i < n_samples; ++i) {
-      const x = (i * 2) / n_samples - 1;
-      curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
-    }
-    return curve;
+  _buildElectricGlider() {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    this.gliderGain = this.ctx.createGain();
+    this.gliderGain.gain.setValueAtTime(this.TARGET_GLIDER, now);
+
+    this.gliderFilter = this.ctx.createBiquadFilter();
+    this.gliderFilter.type = "lowpass";
+    this.gliderFilter.frequency.setValueAtTime(320, now);
+
+    this.gliderOsc = this.ctx.createOscillator();
+    this.gliderOsc.type = "sine";
+    this.gliderOsc.frequency.setValueAtTime(124, now);
+
+    this.gliderSub = this.ctx.createOscillator();
+    this.gliderSub.type = "triangle";
+    this.gliderSub.frequency.setValueAtTime(62, now);
+
+    const subGain = this.ctx.createGain();
+    subGain.gain.setValueAtTime(0.4, now);
+    this.gliderSub.connect(subGain);
+
+    this.gliderOsc.connect(this.gliderFilter);
+    subGain.connect(this.gliderFilter);
+    this.gliderFilter.connect(this.gliderGain);
+    this.gliderGain.connect(this.masterGain);
+
+    this.gliderOsc.start(now);
+    this.gliderSub.start(now);
   }
 
   /**
-   * Updates audio parameters smoothly on every frame (rpm, speed, throttle)
+   * Play a pleasant crystal pentatonic chime when hovering over a billboard
+   */
+  playHover(spotId = 0) {
+    if (!this.isInitialized || !this.ctx || this.isMuted) return;
+
+    const now = this.ctx.currentTime;
+    // Throttle chimes to at least 70ms apart so fast scrubbing sounds musical, not chaotic
+    if (now - this.lastHoverTime < 0.07) return;
+    this.lastHoverTime = now;
+
+    try {
+      const noteIdx = Math.abs(Number(spotId) || 0) % this.pentatonicScale.length;
+      const freq = this.pentatonicScale[noteIdx];
+
+      // Primary crystal sine
+      const osc = this.ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now);
+
+      // Shimmer overtone (soft harmonic sparkle)
+      const shimmer = this.ctx.createOscillator();
+      shimmer.type = "triangle";
+      shimmer.frequency.setValueAtTime(freq * 2.0, now);
+
+      const chimeGain = this.ctx.createGain();
+      chimeGain.gain.setValueAtTime(0.0001, now);
+      chimeGain.gain.exponentialRampToValueAtTime(0.18, now + 0.015);
+      chimeGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+
+      const shimmerGain = this.ctx.createGain();
+      shimmerGain.gain.setValueAtTime(0.0001, now);
+      shimmerGain.gain.exponentialRampToValueAtTime(0.06, now + 0.012);
+      shimmerGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+
+      osc.connect(chimeGain);
+      shimmer.connect(shimmerGain);
+
+      chimeGain.connect(this.sfxGain);
+      shimmerGain.connect(this.sfxGain);
+
+      osc.start(now);
+      shimmer.start(now);
+      osc.stop(now + 0.3);
+      shimmer.stop(now + 0.3);
+    } catch (e) {
+      // Ignore audio error
+    }
+  }
+
+  /**
+   * Play a rewarding holographic crystal chime when selecting a spot
+   */
+  playSelect() {
+    if (!this.isInitialized || !this.ctx || this.isMuted) return;
+
+    try {
+      const now = this.ctx.currentTime;
+
+      // Two-tone rising harmonic chime (E5 -> B5)
+      const tones = [
+        { freq: 659.25, time: 0, dur: 0.28, vol: 0.22 },
+        { freq: 987.77, time: 0.06, dur: 0.36, vol: 0.26 },
+      ];
+
+      tones.forEach((t) => {
+        const osc = this.ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(t.freq, now + t.time);
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.0001, now + t.time);
+        gain.gain.exponentialRampToValueAtTime(t.vol, now + t.time + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + t.time + t.dur);
+
+        osc.connect(gain);
+        gain.connect(this.sfxGain);
+
+        osc.start(now + t.time);
+        osc.stop(now + t.time + t.dur + 0.05);
+      });
+    } catch (e) {
+      // Ignore audio error
+    }
+  }
+
+  /**
+   * Play a clean sci-fi tactile click for UI actions (e.g. camera switch, claim click)
+   */
+  playAction() {
+    if (!this.isInitialized || !this.ctx || this.isMuted) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(780, now);
+      osc.frequency.exponentialRampToValueAtTime(420, now + 0.06);
+
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+
+      osc.start(now);
+      osc.stop(now + 0.08);
+    } catch (e) {
+      // Ignore audio error
+    }
+  }
+
+  /**
+   * Updates audio parameters smoothly on frame loop (subtle speed & atmosphere response)
    */
   update(delta = 0.016, speed = 32.0, isAccelerating = false) {
     if (!this.isInitialized || !this.ctx || this.isMuted) return;
 
     const now = this.ctx.currentTime;
-    const targetRPM = isAccelerating ? 4200 : 2600 + Math.sin(now * 1.5) * 220;
-    this.currentRPM += (targetRPM - this.currentRPM) * 0.08;
 
-    // 1. Engine frequency modulation (V8: Fundamental = RPM / 60)
-    const baseFreq = (this.currentRPM / 60) * 1.15; // ~42 Hz to 80 Hz
-    if (this.oscFundamental) {
-      this.oscFundamental.frequency.setTargetAtTime(baseFreq, now, 0.04);
-    }
-    if (this.oscSub) {
-      this.oscSub.frequency.setTargetAtTime(baseFreq * 0.5, now, 0.04);
-    }
-    if (this.oscHarmonic) {
-      this.oscHarmonic.frequency.setTargetAtTime(baseFreq * 2.0, now, 0.04);
-    }
-    if (this.engineFilter) {
-      const filterFreq = 220 + (this.currentRPM / 4500) * 260;
-      this.engineFilter.frequency.setTargetAtTime(filterFreq, now, 0.05);
+    // 1. Subtle breeze wind modulation
+    if (this.breezeFilter && this.breezeGain) {
+      const targetBreezeFreq = 340 + (speed / 35.0) * 120 + (isAccelerating ? 80 : 0);
+      this.breezeFilter.frequency.setTargetAtTime(targetBreezeFreq, now, 0.1);
+      this.breezeGain.gain.setTargetAtTime(this.TARGET_BREEZE * (isAccelerating ? 1.25 : 1.0), now, 0.1);
     }
 
-    // 2. Turbo frequency & volume modulation
-    if (this.turboTone && this.turboGain && this.turboFilter) {
-      const turboWhistleFreq = 1400 + (this.currentRPM / 4500) * 1600;
-      this.turboTone.frequency.setTargetAtTime(turboWhistleFreq, now, 0.06);
-      this.turboFilter.frequency.setTargetAtTime(turboWhistleFreq * 1.1, now, 0.06);
-
-      const targetTurboGain = this.TARGET_TURBO * (0.35 + (this.currentRPM / 4500) * 0.65);
-      this.turboGain.gain.setTargetAtTime(targetTurboGain, now, 0.06);
-    }
-
-    // 3. Road noise modulation with speed
-    if (this.roadGain && this.roadFilter) {
-      const roadFreq = 260 + (speed / 35.0) * 120;
-      this.roadFilter.frequency.setTargetAtTime(roadFreq, now, 0.08);
-      this.roadGain.gain.setTargetAtTime(this.TARGET_ROAD, now, 0.08);
+    // 2. Futuristic glider pitch modulation (smooth electric hum)
+    if (this.gliderOsc && this.gliderGain) {
+      const targetGliderFreq = 120 + (speed / 35.0) * 28 + (isAccelerating ? 24 : 0);
+      this.gliderOsc.frequency.setTargetAtTime(targetGliderFreq, now, 0.12);
     }
   }
 
@@ -315,7 +371,7 @@ class SupercarSoundEngine {
     if (this.masterGain && this.ctx) {
       const now = this.ctx.currentTime;
       const target = this.isMuted ? 0.0001 : this.TARGET_MASTER;
-      this.masterGain.gain.linearRampToValueAtTime(target, now + 0.15);
+      this.masterGain.gain.linearRampToValueAtTime(target, now + 0.2);
     }
     return !this.isMuted;
   }
@@ -332,9 +388,9 @@ class SupercarSoundEngine {
     if (this.masterGain && this.ctx) {
       const now = this.ctx.currentTime;
       const target = this.isMuted ? 0.0001 : this.TARGET_MASTER;
-      this.masterGain.gain.linearRampToValueAtTime(target, now + 0.15);
+      this.masterGain.gain.linearRampToValueAtTime(target, now + 0.2);
     }
   }
 }
 
-export const audioManager = new SupercarSoundEngine();
+export const audioManager = new AmbientSoundEngine();

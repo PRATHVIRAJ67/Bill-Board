@@ -36,17 +36,42 @@ nav { display: flex; gap: 34px; flex: 1; }.nav-item, .menu-button, .camera-dock 
   color: var(--cyan);
   border-color: rgba(0, 217, 255, 0.55);
 }
-.sound-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #50656e;
-  transition: background 0.2s, box-shadow 0.2s;
+.sound-eq-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 10px;
+  width: 10px;
 }
-.sound-dot.active {
+.sound-eq-bars span {
+  display: block;
+  width: 2px;
+  background: #50656e;
+  border-radius: 1px;
+  height: 3px;
+  transition: background 0.2s, height 0.2s;
+}
+.sound-eq-bars.active span {
   background: var(--cyan);
-  box-shadow: 0 0 8px var(--cyan);
+  box-shadow: 0 0 6px var(--cyan);
+  animation: soundEqWave 1.2s ease-in-out infinite alternate;
+}
+.sound-eq-bars.active span:nth-child(1) {
+  animation-delay: 0s;
+  height: 4px;
+}
+.sound-eq-bars.active span:nth-child(2) {
+  animation-delay: 0.35s;
+  height: 9px;
+}
+.sound-eq-bars.active span:nth-child(3) {
+  animation-delay: 0.18s;
+  height: 6px;
+}
+@keyframes soundEqWave {
+  0% { height: 2px; }
+  50% { height: 10px; }
+  100% { height: 4px; }
 }
 
 .menu-button { display: none; grid-template-rows: auto auto auto; gap: 5px; padding: 8px 0 8px 16px; pointer-events: auto; cursor: pointer; }.menu-button span { width: 23px; height: 1px; background: #dce4e5; display: block; }
@@ -142,9 +167,37 @@ nav { display: flex; gap: 34px; flex: 1; }.nav-item, .menu-button, .camera-dock 
   .scroll-cue { display: none !important; }
   .board-stats { display: none !important; }
 
-  .camera-dock { pointer-events: auto; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); transform: none; padding: 5px 6px; gap: 4px; display: flex; align-items: center; justify-content: space-between; background: rgba(4,9,13,.86); backdrop-filter: blur(14px); border: 1px solid rgba(162,221,230,.22); border-radius: 6px; z-index: 20; }
+  .camera-dock {
+    pointer-events: auto;
+    left: 8px;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    transform: none;
+    padding: 4px 6px;
+    gap: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(4,9,13,.88);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(162,221,230,.22);
+    border-radius: 6px;
+    z-index: 20;
+    max-width: 100vw;
+  }
   .dock-label { display: none; }
-  .camera-dock button { flex: 1; padding: 7px 2px; font-size: 9.5px; letter-spacing: .02em; text-align: center; min-width: 0; white-space: nowrap; border-radius: 4px; }
+  .camera-dock button {
+    flex: 1;
+    padding: 6px 4px;
+    font-size: 9px;
+    letter-spacing: .02em;
+    text-align: center;
+    min-width: 0;
+    white-space: nowrap;
+    border-radius: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .camera-dock button span { display: none; }
   .camera-dock .reset { margin-left: 0; flex: 0.85; }
 
@@ -192,12 +245,13 @@ nav { display: flex; gap: 34px; flex: 1; }.nav-item, .menu-button, .camera-dock 
     right: auto;
     transform: translateX(-50%);
     bottom: 6px;
-    padding: 3px 6px;
-    gap: 3px;
+    padding: 3px 8px;
+    gap: 4px;
     width: auto;
-    min-width: 300px;
+    min-width: 320px;
+    max-width: 92vw;
   }
-  .camera-dock button { font-size: 8.5px; padding: 4px 6px; letter-spacing: 0.02em; }
+  .camera-dock button { font-size: 8.5px; padding: 4px 8px; letter-spacing: 0.02em; flex: 1; }
 }
 
 @media (max-width: 380px) {
@@ -319,6 +373,7 @@ nav { display: flex; gap: 34px; flex: 1; }.nav-item, .menu-button, .camera-dock 
   position: fixed;
   inset: 0;
   z-index: 99999;
+  pointer-events: auto !important;
   background: rgba(3, 8, 14, 0.85);
   backdrop-filter: blur(12px);
   display: flex;
@@ -326,37 +381,44 @@ nav { display: flex; gap: 34px; flex: 1; }.nav-item, .menu-button, .camera-dock 
   justify-content: center;
   padding: 20px;
   animation: fadeIn 0.25s ease-out;
+  overscroll-behavior: contain;
+  touch-action: auto;
 }
 
 .claim-modal-card {
   position: relative;
   width: 100%;
-  max-width: 580px;
+  max-width: 480px;
+  pointer-events: auto !important;
   background: #081017;
   border: 1px solid rgba(0, 196, 140, 0.35);
-  border-radius: 16px;
-  padding: 32px;
+  border-radius: 14px;
+  padding: 20px 22px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), 0 0 32px rgba(0, 196, 140, 0.15);
   color: #e2f1f5;
   max-height: 90vh;
+  max-height: 90dvh;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .claim-modal-close {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 14px;
+  right: 14px;
   z-index: 100;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 50%;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #94b8c9;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
   pointer-events: auto;
@@ -370,74 +432,74 @@ nav { display: flex; gap: 34px; flex: 1; }.nav-item, .menu-button, .camera-dock 
 }
 
 .claim-spot-tag {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 2px;
   color: #00c48c;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .claim-modal-header h2 {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 800;
   color: #ffffff;
-  margin: 0 0 8px 0;
+  margin: 0 0 4px 0;
   letter-spacing: 0.5px;
 }
 
 .claim-price-badge {
-  font-size: 14px;
+  font-size: 13px;
   color: #92b5c4;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .onetime-tag {
   background: rgba(0, 196, 140, 0.15);
   border: 1px solid #00c48c;
   color: #00c48c;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 800;
-  padding: 3px 8px;
+  padding: 2px 7px;
   border-radius: 4px;
   letter-spacing: 1px;
 }
 
 .claim-fomo-note {
-  font-size: 12px;
+  font-size: 11px;
   color: #ff9c3a;
   font-weight: 600;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 .claim-price-badge strong {
   color: #ffffff;
-  font-size: 16px;
+  font-size: 14.5px;
 }
 
 .claim-form {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 11px;
 }
 
 .claim-error {
   background: rgba(255, 91, 106, 0.15);
   border: 1px solid #ff5b6a;
   color: #ff8c96;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 .form-group label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 1px;
   color: #7a9dae;
@@ -448,35 +510,36 @@ nav { display: flex; gap: 34px; flex: 1; }.nav-item, .menu-button, .camera-dock 
 .form-group select {
   background: #04080c;
   border: 1px solid #1a2a35;
-  border-radius: 8px;
-  padding: 12px 14px;
+  border-radius: 7px;
+  padding: 9px 12px;
   color: #ffffff;
-  font-size: 14px;
+  font-size: 15px;
   outline: none;
   transition: border-color 0.2s;
+  -webkit-appearance: none;
 }
 .form-group input:focus,
 .form-group select:focus {
   border-color: #00c48c;
-  box-shadow: 0 0 10px rgba(0, 196, 140, 0.2);
+  box-shadow: 0 0 8px rgba(0, 196, 140, 0.2);
 }
 .form-group small {
-  font-size: 11px;
+  font-size: 10px;
   color: #618292;
 }
 
 .link-type-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  gap: 6px;
 }
 .link-type-btn {
   background: #04080c;
   border: 1px solid #1a2a35;
   color: #94b8c9;
-  padding: 8px 10px;
+  padding: 6px 8px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 11px;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -494,18 +557,19 @@ nav { display: flex; gap: 34px; flex: 1; }.nav-item, .menu-button, .camera-dock 
 .form-row-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 12px;
 }
 
 .color-presets {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  height: 42px;
+  flex-wrap: wrap;
+  min-height: 36px;
 }
 .color-btn {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   border: 2px solid transparent;
   cursor: pointer;
@@ -515,30 +579,30 @@ nav { display: flex; gap: 34px; flex: 1; }.nav-item, .menu-button, .camera-dock 
 .color-btn.active {
   border-color: #ffffff;
   transform: scale(1.2);
-  box-shadow: 0 0 10px currentColor;
+  box-shadow: 0 0 8px currentColor;
 }
 
 .claim-live-preview {
-  margin-top: 6px;
-  padding: 16px;
+  margin-top: 2px;
+  padding: 10px 12px;
   background: #04080c;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px dashed #1a2e3b;
 }
 .preview-label {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 1.5px;
   color: #6a8c9c;
   display: block;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 .preview-panel-card {
   position: relative;
-  height: 70px;
+  height: 52px;
   background: #0a1115;
   border: 2px solid #00c48c;
-  border-radius: 10px;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -547,40 +611,40 @@ nav { display: flex; gap: 34px; flex: 1; }.nav-item, .menu-button, .camera-dock 
 }
 .pp-num {
   position: absolute;
-  top: 8px;
-  left: 12px;
-  font-size: 12px;
+  top: 5px;
+  left: 8px;
+  font-size: 11px;
   color: #7b99a6;
   font-weight: 700;
 }
 .pp-handle {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 800;
 }
 .pp-cat {
-  font-size: 9px;
+  font-size: 8.5px;
   letter-spacing: 2px;
   font-weight: 700;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .claim-pay-btn {
   background: linear-gradient(135deg, #00c48c, #00986c);
   color: #03080e;
   border: none;
-  border-radius: 10px;
-  padding: 16px;
-  font-size: 15px;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 13.5px;
   font-weight: 800;
   letter-spacing: 1px;
   cursor: pointer;
-  box-shadow: 0 4px 20px rgba(0, 196, 140, 0.4);
+  box-shadow: 0 4px 16px rgba(0, 196, 140, 0.4);
   transition: transform 0.2s, box-shadow 0.2s;
-  margin-top: 8px;
+  margin-top: 4px;
 }
 .claim-pay-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 28px rgba(0, 196, 140, 0.6);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(0, 196, 140, 0.6);
 }
 .claim-pay-btn:disabled {
   opacity: 0.6;
@@ -588,7 +652,7 @@ nav { display: flex; gap: 34px; flex: 1; }.nav-item, .menu-button, .camera-dock 
 }
 
 .pay-secure-note {
-  font-size: 11px;
+  font-size: 10.5px;
   color: #5c7e8e;
   text-align: center;
   margin: 0;
@@ -596,6 +660,29 @@ nav { display: flex; gap: 34px; flex: 1; }.nav-item, .menu-button, .camera-dock 
 
 .link-preview-txt {
   word-break: break-all;
-  font-size: 11px !important;
+  font-size: 10.5px !important;
   color: #00c48c !important;
+}
+
+@media (max-width: 600px) {
+  .claim-modal-overlay {
+    padding: 8px;
+    align-items: flex-end;
+  }
+  .claim-modal-card {
+    padding: 16px 14px 20px;
+    max-height: 85dvh;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .claim-modal-header h2 {
+    font-size: 17px;
+  }
+  .form-row-2 {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .link-type-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
