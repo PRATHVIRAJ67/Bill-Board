@@ -376,7 +376,14 @@ export default function App() {
                 CLAIM LIFETIME SPOT <span>↗</span>
               </button>
             ) : (
-              <button className="primary-cta soldout" onClick={() => alert("Billboard #1 is 100% Sold Out! Board #2 Launching Soon.")} data-testid="board-cam-button">
+              <button
+                className="primary-cta soldout"
+                onClick={() => {
+                  audioManager.playAction();
+                  document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" });
+                }}
+                data-testid="board-cam-button"
+              >
                 🎉 BOARD #1 SOLD OUT · JOIN BOARD #2 WAITLIST <span>↗</span>
               </button>
             )}

@@ -58,13 +58,13 @@ export const SPOT_DIMENSIONS = {
 export const GRID = {
   cols: 5,
   rows: 4,
-  colStep: 3.82,
-  rowStep: 2.15,
-  originX: -7.64,
-  originY: 3.22,
+  colStep: 3.62,
+  rowStep: 1.92,
+  originX: -7.24,
+  originY: 3.09,
   billboardZ: -30,
   panelsY: 8.2,
-  panelsZ: 0.42,
+  panelsZ: 0.35,
 };
 
 export function getLinkIcon(linkType) {

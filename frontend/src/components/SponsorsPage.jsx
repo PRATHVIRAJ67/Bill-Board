@@ -121,8 +121,8 @@ export default function SponsorsPage({ spots = [], onBackToBoard, onClaimSpot, o
           </div>
         </header>
 
-        {/* Featured #1 Sponsor Hero Banner if claimed */}
-        {stats.topClaimed && (() => {
+        {/* Featured #1 Sponsor Hero Banner if claimed OR Open Invitation */}
+        {stats.topClaimed ? (() => {
           const topLogo = getSpotLogoUrl(stats.topClaimed);
           return (
             <div
@@ -183,7 +183,44 @@ export default function SponsorsPage({ spots = [], onBackToBoard, onClaimSpot, o
               </div>
             </div>
           );
-        })()}
+        })() : (
+          <div
+            className="top-sponsor-spotlight available-spotlight"
+            onClick={() => onClaimSpot ? onClaimSpot(spots[0]) : null}
+            style={{ cursor: "pointer" }}
+            data-testid="top-sponsor-spotlight"
+          >
+            <div className="spotlight-badge">👑 #1 PRIME SPOTLIGHT · OPEN FOR YOUR BRAND</div>
+            <div className="spotlight-content">
+              <div
+                className="spotlight-avatar"
+                style={{ borderColor: "#ffd700", background: "rgba(255, 215, 0, 0.15)", boxShadow: "0 0 20px rgba(255, 215, 0, 0.3)" }}
+              >
+                <span className="spotlight-avatar-icon">👑</span>
+              </div>
+              <div className="spotlight-info">
+                <h2>BE THE #1 FEATURED SPONSOR</h2>
+                <p>Spot #01 (Prime Gold Crown) · $125 USD · One-Time Purchase · Lifetime Ownership</p>
+                <div className="spotlight-specs-row">
+                  <span className="spotlight-dim-badge">📏 {SPOT_DIMENSIONS.width} × {SPOT_DIMENSIONS.height} ({SPOT_DIMENSIONS.aspectRatio})</span>
+                  <span className="spotlight-url" style={{ color: "#ffd700" }}>Claim the top spot to own this spotlight banner</span>
+                </div>
+              </div>
+              <div className="spotlight-actions">
+                <button
+                  className="spotlight-visit-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onClaimSpot) onClaimSpot(spots[0]);
+                  }}
+                  data-testid="top-sponsor-claim-btn"
+                >
+                  CLAIM SPOT #01 ($125) ↗
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Controls: Search and Filters */}
         <div className="sponsors-controls">

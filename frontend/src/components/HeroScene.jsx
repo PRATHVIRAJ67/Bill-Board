@@ -43,31 +43,38 @@ function groundVehicleToRoad(group, targetRoadY = ROAD_SURFACE_Y) {
 /* ------------------------------------------------- Window-lights texture */
 function useCityFacadeTexture() {
   return useMemo(() => {
-    const size = 256;
+    const size = 1024;
     const cvs = document.createElement("canvas");
     cvs.width = cvs.height = size;
     const ctx = cvs.getContext("2d");
-    ctx.fillStyle = "#05090e";
+    ctx.fillStyle = "#04070b";
     ctx.fillRect(0, 0, size, size);
     
-    const cols = 28, rows = 44;
+    const cols = 32, rows = 64;
     for (let y = 0; y < rows; y++) {
-      const floorOff = Math.random() < 0.2;
+      const floorOff = Math.random() < 0.22;
       for (let x = 0; x < cols; x++) {
-        if (floorOff && Math.random() < 0.8) continue;
-        if (Math.random() < 0.38) continue;
-        const brightness = Math.random();
-        const warm = Math.random() < 0.72;
-        const hue = warm ? "255, 235, 185" : "175, 220, 240";
-        ctx.fillStyle = `rgba(${hue}, ${0.4 + brightness * 0.6})`;
-        const px = (size / cols) * x + 2;
-        const py = (size / rows) * y + 1;
-        ctx.fillRect(px, py, (size / cols) - 4, (size / rows) - 2);
+        if (floorOff && Math.random() < 0.75) continue;
+        if (Math.random() < 0.35) continue;
+        const brightness = 0.5 + Math.random() * 0.5;
+        const warm = Math.random() < 0.75;
+        const r = warm ? 255 : 180;
+        const g = warm ? 228 : 225;
+        const b = warm ? 160 : 255;
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${brightness})`;
+        const px = (size / cols) * x + 4;
+        const py = (size / rows) * y + 3;
+        const w = (size / cols) - 8;
+        const h = (size / rows) - 5;
+        ctx.fillRect(px, py, Math.max(2, w), Math.max(2, h));
       }
     }
     const tex = new THREE.CanvasTexture(cvs);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.anisotropy = 8;
+    tex.generateMipmaps = true;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.anisotropy = 16;
     return tex;
   }, []);
 }
@@ -660,125 +667,108 @@ function InteractivePanel({ spot, index, hoveredId, selectedId, onHover, onSelec
         onSelect(spot.id);
       }}
     >
-      <mesh castShadow>
-        <boxGeometry args={[3.6, 1.9, 0.06]} />
+      {/* Single Solid Clean 3D Panel Card with Zero Z-Fighting */}
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[3.62, 1.92, 0.06]} />
         <meshStandardMaterial
-          color="#03060a"
-          metalness={0.1}
-          roughness={0.85}
-          emissive="#000000"
+          color={brandColor}
+          metalness={0.2}
+          roughness={0.28}
+          emissive={brandColor}
+          emissiveIntensity={isHovered ? 0.4 : isDimmed ? 0.04 : 0.14}
         />
       </mesh>
-      {!spot.claimed && (
-        <mesh ref={glowRef} position={[0, 0, 0.035]}>
-          <planeGeometry args={[3.6, 1.9]} />
-          <meshBasicMaterial color={cyan} transparent opacity={0.35} depthWrite={false} />
-        </mesh>
-      )}
-      {spot.claimed && (
-        <mesh position={[0, 0, 0.035]}>
-          <planeGeometry args={[3.6, 1.9]} />
-          <meshBasicMaterial color={brandColor} transparent opacity={isDimmed ? 0.35 : 0.65} depthWrite={false} />
-        </mesh>
-      )}
 
-      {/* Spot Number Tag */}
+      {/* Row 1: Spot Number Tag (Top Left) */}
       <Text
-        position={[-1.52, 0.68, 0.09]}
-        fontSize={isMobile ? 0.25 : 0.22}
+        position={[-1.52, 0.66, 0.038]}
+        fontSize={isMobile ? 0.23 : 0.21}
         color="#ffffff"
         anchorX="left"
         anchorY="middle"
-        outlineWidth={0.012}
+        outlineWidth={0.016}
         outlineColor="#000000"
       >
         #{String(spot.id).padStart(2, "0")}
       </Text>
 
-      {spot.claimed ? (
-        <>
-          {/* Category Subtag - Crisp White with Black Outline for Maximum Legibility on Any Color */}
-          {spot.category && (
-            <Text
-              position={[0, 0.38, 0.09]}
-              fontSize={isMobile ? 0.20 : 0.18}
-              color="#ffffff"
-              anchorX="center"
-              anchorY="middle"
-              letterSpacing={0.08}
-              maxWidth={3.2}
-              outlineWidth={0.015}
-              outlineColor="#000000"
-            >
-              {spot.category.toUpperCase()}
-            </Text>
-          )}
+      {/* Row 1: Spot Price Tag (Top Right if open) */}
+      {!spot.claimed && (
+        <Text
+          position={[1.52, 0.66, 0.038]}
+          fontSize={isMobile ? 0.23 : 0.21}
+          color="#ffffff"
+          anchorX="right"
+          anchorY="middle"
+          outlineWidth={0.016}
+          outlineColor="#000000"
+        >
+          ${spot.price} USD
+        </Text>
+      )}
 
-          {/* Prominent Bold Brand Handle with Auto-Fitting Font Size */}
-          {(() => {
-            const hText = spot.handle || "";
-            const hLen = hText.length;
-            const hSize =
-              hLen > 17
-                ? (isMobile ? 0.26 : 0.24)
-                : hLen > 13
-                ? (isMobile ? 0.32 : 0.28)
-                : hLen > 8
-                ? (isMobile ? 0.40 : 0.35)
-                : (isMobile ? 0.48 : 0.42);
+      {/* Row 2: Brand Handle / Main Action with Auto-Fitting Font Size */}
+      {(() => {
+        const hText = spot.claimed ? (spot.handle || "@yourbrand") : "+ YOUR BRAND";
+        const hLen = hText.length;
+        const hSize =
+          hLen > 17
+            ? (isMobile ? 0.26 : 0.24)
+            : hLen > 13
+            ? (isMobile ? 0.32 : 0.28)
+            : hLen > 8
+            ? (isMobile ? 0.38 : 0.34)
+            : (isMobile ? 0.46 : 0.40);
 
-            return (
-              <Text
-                position={[0, spot.category ? -0.14 : 0, 0.09]}
-                fontSize={hSize}
-                color="#ffffff"
-                anchorX="center"
-                anchorY="middle"
-                maxWidth={3.2}
-                textAlign="center"
-                outlineWidth={0.016}
-                outlineColor="#000000"
-              >
-                {hText}
-              </Text>
-            );
-          })()}
-        </>
-      ) : (
-        <>
+        return (
           <Text
-            position={[0, 0.26, 0.09]}
-            fontSize={isMobile ? 0.25 : 0.22}
-            color={cyan}
-            anchorX="center"
-            anchorY="middle"
-            letterSpacing={0.08}
-            outlineWidth={0.008}
-            outlineColor="#000000"
-          >
-            AVAILABLE
-          </Text>
-          <Text
-            position={[0, -0.22, 0.09]}
-            fontSize={isMobile ? 0.54 : 0.48}
+            position={[0, 0.02, 0.038]}
+            fontSize={hSize}
             color="#ffffff"
             anchorX="center"
             anchorY="middle"
-            outlineWidth={0.015}
+            maxWidth={3.2}
+            textAlign="center"
+            outlineWidth={0.02}
             outlineColor="#000000"
           >
-            {priceLabel}
+            {hText}
           </Text>
-        </>
-      )}
+        );
+      })()}
+
+      {/* Row 3: Category / Action Subtag (Bottom Center) */}
+      <Text
+        position={[0, -0.58, 0.038]}
+        fontSize={isMobile ? 0.18 : 0.16}
+        color="#ffffff"
+        anchorX="center"
+        anchorY="middle"
+        letterSpacing={0.08}
+        maxWidth={3.2}
+        outlineWidth={0.014}
+        outlineColor="#000000"
+      >
+        {spot.claimed ? (spot.category || "BRAND").toUpperCase() : "⚡ CLAIM SPOT ↗"}
+      </Text>
     </group>
   );
 }
 
 function Panels({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect, isMobile }) {
   const spotsList = (spots && spots.length > 0) ? spots : SPOTS;
+  // Full panel grid dimensions for backing plane (5 cols × 4 rows)
+  const totalW = GRID.colStep * GRID.cols;
+  const totalH = GRID.rowStep * GRID.rows;
+  const centerX = GRID.originX + (GRID.colStep * (GRID.cols - 1)) / 2;
+  const centerY = GRID.originY - (GRID.rowStep * (GRID.rows - 1)) / 2;
   return (
     <group position={[0, GRID.panelsY, GRID.panelsZ]}>
+      {/* Dark absorbing backing plane — kills light leaking through inter-panel gaps */}
+      <mesh position={[centerX, centerY, -0.04]}>
+        <planeGeometry args={[totalW + 0.05, totalH + 0.05]} />
+        <meshBasicMaterial color="#000000" />
+      </mesh>
       {spotsList.map((spot, i) => (
         <InteractivePanel
           key={spot.id}

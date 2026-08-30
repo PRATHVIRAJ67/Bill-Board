@@ -23,7 +23,7 @@ export function loadRazorpayScript() {
 export async function openRazorpayCheckout({ amountUSD, spotId, handle, spotPayload, onSuccess, onFailure }) {
   const isLoaded = await loadRazorpayScript();
   if (!isLoaded) {
-    alert("Razorpay SDK failed to load. Please check your internet connection.");
+    if (onFailure) onFailure("Razorpay SDK failed to load. Please check your internet connection.");
     return;
   }
 
