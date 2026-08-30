@@ -19,6 +19,27 @@ function getSupabaseClient(env) {
   return createClient(url, key);
 }
 
+// Helper to verify Razorpay HMAC-SHA256 signature using Web Crypto API
+async function verifyRazorpaySignature(orderId, paymentId, signature, secret) {
+  if (!orderId || !paymentId || !signature || !secret) {
+    return false;
+  }
+  const text = `${orderId}|${paymentId}`;
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const sigBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(text));
+  const hexSig = Array.from(new Uint8Array(sigBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  return hexSig.toLowerCase() === signature.toLowerCase();
+}
+
 // GET /api/ - Health check
 app.get('/api', (c) => {
   return c.json({ status: 'ok', service: 'The Board Secure Backend API', timestamp: new Date().toISOString() });
@@ -44,11 +65,127 @@ app.get('/api/spots', async (c) => {
   }
 });
 
+// POST /api/create-order & /api/create-razorpay-order
+const handleCreateOrder = async (c) => {
+  try {
+    const body = await c.req.json();
+    
+    // Calculate amount in paise (minimum 100 paise = 1 INR)
+    let amountInPaise = 0;
+    if (body.amount) {
+      amountInPaise = Number(body.amount);
+    } else if (body.amountUSD) {
+      const amountInINR = Math.round(Number(body.amountUSD) * 83);
+      amountInPaise = amountInINR * 100;
+    } else {
+      amountInPaise = 25 * 83 * 100; // default $25
+    }
+
+    // Minimum amount validation
+    if (amountInPaise < 100) {
+      return c.json({ success: false, error: 'Amount must be at least 100 paise (1 INR)' }, 400);
+    }
+
+    const env = c.env;
+    const keyId = env?.RAZORPAY_KEY_ID || "rzp_test_TVtzzS51l0oAyp";
+    const keySecret = env?.RAZORPAY_KEY_SECRET || "YpcgbNmIH9oC5iwkzNqfWZJv";
+
+    const authHeader = 'Basic ' + btoa(`${keyId}:${keySecret}`);
+    const receipt = body.receipt || `rcpt_spot_${body.spotId || 'gen'}_${Date.now().toString().slice(-8)}`;
+
+    const rzpRes = await fetch('https://api.razorpay.com/v1/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader,
+      },
+      body: JSON.stringify({
+        amount: amountInPaise,
+        currency: body.currency || 'INR',
+        receipt: receipt,
+        notes: {
+          spot_id: String(body.spotId || ''),
+          handle: String(body.handle || ''),
+        },
+      }),
+    });
+
+    if (!rzpRes.ok) {
+      const errText = await rzpRes.text();
+      let errJson;
+      try { errJson = JSON.parse(errText); } catch { errJson = { description: errText }; }
+      
+      if (rzpRes.status === 401) {
+        return c.json({ success: false, error: 'Razorpay Authentication failed. Check Key ID & Secret.' }, 401);
+      }
+      return c.json({
+        success: false,
+        error: errJson.error?.description || errJson.description || 'Failed to create Razorpay order',
+      }, rzpRes.status || 500);
+    }
+
+    const orderData = await rzpRes.json();
+    return c.json({
+      success: true,
+      order_id: orderData.id,
+      id: orderData.id,
+      amount: orderData.amount,
+      currency: orderData.currency,
+      status: orderData.status,
+      receipt: orderData.receipt,
+    });
+  } catch (err) {
+    return c.json({ success: false, error: err.message || 'Internal Server Error' }, 500);
+  }
+};
+
+app.post('/api/create-order', handleCreateOrder);
+app.post('/api/create-razorpay-order', handleCreateOrder);
+
+// POST /api/verify-payment - Verify HMAC-SHA256 payment signature
+app.post('/api/verify-payment', async (c) => {
+  try {
+    const body = await c.req.json();
+    const orderId = body.razorpay_order_id || body.orderId || body.order_id;
+    const paymentId = body.razorpay_payment_id || body.paymentId || body.payment_id;
+    const signature = body.razorpay_signature || body.signature;
+
+    if (!orderId || !paymentId || !signature) {
+      return c.json({
+        success: false,
+        error: 'Missing required payment verification fields (razorpay_order_id, razorpay_payment_id, razorpay_signature)',
+      }, 400);
+    }
+
+    const env = c.env;
+    const keySecret = env?.RAZORPAY_KEY_SECRET || "YpcgbNmIH9oC5iwkzNqfWZJv";
+
+    const isValid = await verifyRazorpaySignature(orderId, paymentId, signature, keySecret);
+
+    if (!isValid) {
+      return c.json({
+        success: false,
+        error: 'Payment verification failed: Signature mismatch',
+      }, 400);
+    }
+
+    return c.json({
+      success: true,
+      status: 'verified',
+      paymentId: paymentId,
+      orderId: orderId,
+      spotId: body.spotId,
+    });
+  } catch (err) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
 // POST /api/spots/claim - Secure backend claim & Supabase update
 app.post('/api/spots/claim', async (c) => {
   try {
     const body = await c.req.json();
-    const { spotId, handle, category, color, link_type, link_url, paymentId } = body;
+    const { spotId, handle, category, color, link_type, link_url, paymentId, orderId } = body;
 
     if (!spotId || !handle) {
       return c.json({ success: false, error: 'spotId and handle are required' }, 400);
@@ -73,13 +210,14 @@ app.post('/api/spots/claim', async (c) => {
       .single();
 
     if (spotError) {
-      console.warn('Backend update notice:', spotError.message);
+      console.warn('Backend Supabase spot update notice:', spotError.message);
     }
 
     // 2. Log transaction record in Supabase
     await supabase.from('transactions').insert({
       spot_id: spotId,
-      razorpay_payment_id: paymentId || `pay_demo_${Date.now()}`,
+      razorpay_payment_id: paymentId || `pay_${Date.now()}`,
+      razorpay_order_id: orderId || null,
       amount: body.amount || 25,
       status: 'completed',
       customer_handle: handle,
@@ -100,63 +238,6 @@ app.post('/api/spots/claim', async (c) => {
     return c.json({ success: true, spot: updatedSpot });
   } catch (err) {
     return c.json({ success: false, error: err.message }, 500);
-  }
-});
-
-// POST /api/create-razorpay-order
-app.post('/api/create-razorpay-order', async (c) => {
-  try {
-    const body = await c.req.json();
-    const amountInINR = Math.round((body.amountUSD || 25) * 83);
-    const amountInPaise = amountInINR * 100;
-
-    const env = c.env;
-    const keyId = env?.RAZORPAY_KEY_ID || "rzp_test_billboard_key";
-    const keySecret = env?.RAZORPAY_KEY_SECRET || "demo_secret";
-
-    const authHeader = 'Basic ' + btoa(`${keyId}:${keySecret}`);
-    const rzpRes = await fetch('https://api.razorpay.com/v1/orders', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader,
-      },
-      body: JSON.stringify({
-        amount: amountInPaise,
-        currency: 'INR',
-        receipt: `receipt_spot_${body.spotId}_${Date.now()}`,
-        notes: { spot_id: body.spotId, handle: body.handle }
-      })
-    });
-
-    if (!rzpRes.ok) {
-      return c.json({
-        id: `order_demo_${Date.now()}`,
-        amount: amountInPaise,
-        currency: 'INR',
-        status: 'created',
-      });
-    }
-
-    const orderData = await rzpRes.json();
-    return c.json(orderData);
-  } catch (err) {
-    return c.json({ error: err.message, id: `order_demo_${Date.now()}` });
-  }
-});
-
-// POST /api/verify-payment
-app.post('/api/verify-payment', async (c) => {
-  try {
-    const body = await c.req.json();
-    return c.json({
-      success: true,
-      paymentId: body.razorpay_payment_id || `pay_${Date.now()}`,
-      spotId: body.spotId,
-      status: 'verified'
-    });
-  } catch (err) {
-    return c.json({ error: err.message }, 500);
   }
 });
 
