@@ -23006,15 +23006,19 @@ app.post("/api/spots/claim", async (c) => {
     if (spotError) {
       console.warn("Backend Supabase spot update notice:", spotError.message);
     }
-    await supabase.from("transactions").insert({
-      spot_id: spotId,
-      razorpay_payment_id: paymentId || `pay_${Date.now()}`,
-      razorpay_order_id: orderId || null,
-      amount: body.amount || 25,
-      status: "completed",
-      customer_handle: handle,
-      customer_link: link_url
-    }).catch((e) => console.warn("Transaction log notice:", e.message));
+    try {
+      await supabase.from("transactions").insert({
+        spot_id: spotId,
+        razorpay_payment_id: paymentId || `pay_${Date.now()}`,
+        razorpay_order_id: orderId || null,
+        amount: body.amount || 25,
+        status: "completed",
+        customer_handle: handle,
+        customer_link: link_url
+      });
+    } catch (txErr) {
+      console.warn("Transaction log notice:", txErr.message);
+    }
     const updatedSpot = spotData || {
       id: spotId,
       handle: handle.trim(),
