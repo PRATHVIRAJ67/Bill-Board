@@ -14,11 +14,11 @@ const PRESET_COLORS = [
 ];
 
 const LINK_TYPES = [
-  { id: "website",   label: "Website 🌐",   prefix: "https://" },
+  { id: "website", label: "Website 🌐", prefix: "https://" },
   { id: "instagram", label: "Instagram 📸", prefix: "https://instagram.com/" },
-  { id: "telegram",  label: "Telegram ✈️",  prefix: "https://t.me/" },
-  { id: "twitter",   label: "Twitter / X 🐦", prefix: "https://x.com/" },
-  { id: "custom",    label: "Custom Link 🔗", prefix: "https://" },
+  { id: "telegram", label: "Telegram ✈️", prefix: "https://t.me/" },
+  { id: "twitter", label: "Twitter / X 🐦", prefix: "https://x.com/" },
+  { id: "custom", label: "Custom Link 🔗", prefix: "https://" },
 ];
 
 const CATEGORIES = ["Brand", "SaaS", "AI", "Creator", "DevTool", "Game", "Music", "Culture", "Studio", "Media"];
@@ -131,7 +131,12 @@ export default function ClaimSpotModal({ spot, onClose, onClaimSuccess }) {
 
           {/* Form Field 1: Brand Handle / Name */}
           <div className="form-group">
-            <label>1. BRAND HANDLE / NAME *</label>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <label>1. BRAND HANDLE / NAME *</label>
+              <span style={{ fontSize: "9px", fontFamily: "'DM Mono', monospace", color: handle.length >= 16 ? "#ff9c3a" : "#6a8c9c" }}>
+                {handle.length}/18 CHARS
+              </span>
+            </div>
             <input
               type="text"
               placeholder="@mybrand or My Startup"
@@ -139,7 +144,7 @@ export default function ClaimSpotModal({ spot, onClose, onClaimSuccess }) {
               onChange={(e) => setHandle(e.target.value)}
               onKeyDown={(e) => e.stopPropagation()}
               required
-              maxLength={24}
+              maxLength={18}
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="none"
@@ -171,8 +176,8 @@ export default function ClaimSpotModal({ spot, onClose, onClaimSuccess }) {
               type="url"
               placeholder={
                 linkType === "telegram" ? "https://t.me/yourchannel" :
-                linkType === "instagram" ? "https://instagram.com/yourbrand" :
-                linkType === "twitter" ? "https://x.com/yourbrand" : "https://yourwebsite.com"
+                  linkType === "instagram" ? "https://instagram.com/yourbrand" :
+                    linkType === "twitter" ? "https://x.com/yourbrand" : "https://yourwebsite.com"
               }
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}

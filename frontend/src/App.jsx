@@ -91,7 +91,14 @@ export default function App() {
     const loadSpots = () => {
       fetchLiveSpots().then((data) => {
         if (data && Array.isArray(data) && data.length > 0) {
-          setSpotsList(data);
+          const merged = SPOTS.map((defaultSpot) => {
+            const dbSpot = data.find((s) => s.id === defaultSpot.id);
+            if (dbSpot && dbSpot.claimed && dbSpot.handle && dbSpot.handle !== "AVAILABLE") {
+              return { ...defaultSpot, ...dbSpot };
+            }
+            return defaultSpot;
+          });
+          setSpotsList(merged);
         }
       });
     };
@@ -215,7 +222,7 @@ export default function App() {
       <section id="board" className="hero-viewport-section" data-testid="board-section">
         <div className="canvas-wrapper">
           <Canvas
-            dpr={isMobile ? [1, 1.35] : [1, 1.65]}
+            dpr={[1, 2]}
             gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.28 }}
             shadows={!isMobile}
             camera={cameraConfig}

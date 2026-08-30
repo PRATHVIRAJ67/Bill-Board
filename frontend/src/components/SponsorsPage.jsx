@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { getLinkIcon } from "@/components/spotData";
+import { getLinkIcon, getSpotLogoUrl, SPOT_DIMENSIONS } from "@/components/spotData";
 import { audioManager } from "@/lib/audioManager";
 
 export default function SponsorsPage({ spots = [], onBackToBoard, onClaimSpot, onInspectSpot }) {
@@ -122,54 +122,68 @@ export default function SponsorsPage({ spots = [], onBackToBoard, onClaimSpot, o
         </header>
 
         {/* Featured #1 Sponsor Hero Banner if claimed */}
-        {stats.topClaimed && (
-          <div
-            className="top-sponsor-spotlight"
-            onClick={() => handleCardClick(stats.topClaimed)}
-            style={{ cursor: "pointer" }}
-            data-testid="top-sponsor-spotlight"
-          >
-            <div className="spotlight-badge">👑 #1 RANKED SPONSOR SPOTLIGHT</div>
-            <div className="spotlight-content">
-              <div
-                className="spotlight-avatar"
-                style={{ background: stats.topClaimed.color || "#00d9ff" }}
-              >
-                {getLinkIcon(stats.topClaimed.link_type)}
-              </div>
-              <div className="spotlight-info">
-                <h2>{stats.topClaimed.handle}</h2>
-                <p>
-                  {stats.topClaimed.category} · Spot #{String(stats.topClaimed.id).padStart(2, "0")} (Tier: Prime Center)
-                </p>
-                {stats.topClaimed.link_url && (
-                  <span className="spotlight-url">{stats.topClaimed.link_url}</span>
-                )}
-              </div>
-              <div className="spotlight-actions">
-                {stats.topClaimed.link_url ? (
-                  <button
-                    className="spotlight-visit-btn"
-                    onClick={(e) => handleVisitWebsite(e, stats.topClaimed.link_url)}
-                    data-testid="top-sponsor-visit-btn"
-                  >
-                    VISIT WEBSITE ↗
-                  </button>
-                ) : (
-                  <button
-                    className="spotlight-inspect-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (onInspectSpot) onInspectSpot(stats.topClaimed.id);
-                    }}
-                  >
-                    INSPECT ON BOARD ↗
-                  </button>
-                )}
+        {stats.topClaimed && (() => {
+          const topLogo = getSpotLogoUrl(stats.topClaimed);
+          return (
+            <div
+              className="top-sponsor-spotlight"
+              onClick={() => handleCardClick(stats.topClaimed)}
+              style={{ cursor: "pointer" }}
+              data-testid="top-sponsor-spotlight"
+            >
+              <div className="spotlight-badge">👑 #1 RANKED SPONSOR SPOTLIGHT</div>
+              <div className="spotlight-content">
+                <div
+                  className="spotlight-avatar"
+                  style={{ borderColor: stats.topClaimed.color || "#ffd700", boxShadow: `0 0 20px ${(stats.topClaimed.color || "#ffd700")}44` }}
+                >
+                  {topLogo ? (
+                    <img
+                      src={topLogo}
+                      alt={stats.topClaimed.handle}
+                      className="spotlight-logo-img"
+                      onError={(e) => { e.target.style.display = "none"; }}
+                    />
+                  ) : null}
+                  <span className="spotlight-avatar-icon">{getLinkIcon(stats.topClaimed.link_type)}</span>
+                </div>
+                <div className="spotlight-info">
+                  <h2>{stats.topClaimed.handle}</h2>
+                  <p>
+                    {stats.topClaimed.category} · Spot #{String(stats.topClaimed.id).padStart(2, "0")} (Tier: Prime #1)
+                  </p>
+                  <div className="spotlight-specs-row">
+                    <span className="spotlight-dim-badge">📏 {SPOT_DIMENSIONS.width} × {SPOT_DIMENSIONS.height} ({SPOT_DIMENSIONS.aspectRatio})</span>
+                    {stats.topClaimed.link_url && (
+                      <span className="spotlight-url">{stats.topClaimed.link_url}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="spotlight-actions">
+                  {stats.topClaimed.link_url ? (
+                    <button
+                      className="spotlight-visit-btn"
+                      onClick={(e) => handleVisitWebsite(e, stats.topClaimed.link_url)}
+                      data-testid="top-sponsor-visit-btn"
+                    >
+                      VISIT WEBSITE ↗
+                    </button>
+                  ) : (
+                    <button
+                      className="spotlight-inspect-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onInspectSpot) onInspectSpot(stats.topClaimed.id);
+                      }}
+                    >
+                      INSPECT ON BOARD ↗
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Controls: Search and Filters */}
         <div className="sponsors-controls">
@@ -213,6 +227,7 @@ export default function SponsorsPage({ spots = [], onBackToBoard, onClaimSpot, o
             const badge = getRankBadge(spot.rank);
             const isPrime = spot.price === 125;
             const isClaimed = spot.claimed;
+            const logoUrl = getSpotLogoUrl(spot);
 
             return (
               <div
@@ -230,10 +245,25 @@ export default function SponsorsPage({ spots = [], onBackToBoard, onClaimSpot, o
 
                 {/* Spot Brand & Identity */}
                 <div className="sponsor-main">
+                  {/* Brand Logo Avatar */}
                   <div
-                    className="sponsor-dot"
-                    style={{ background: isClaimed ? (spot.color || "#00c48c") : "rgba(0, 217, 255, 0.25)" }}
-                  />
+                    className="sponsor-logo-box"
+                    style={{
+                      borderColor: isClaimed ? (spot.color || "#00c48c") : "rgba(0, 217, 255, 0.25)",
+                      background: isClaimed ? `${(spot.color || "#00c48c")}22` : "#040a10",
+                    }}
+                  >
+                    {isClaimed && logoUrl ? (
+                      <img
+                        src={logoUrl}
+                        alt={spot.handle}
+                        className="sponsor-logo-img"
+                        onError={(e) => { e.target.style.display = "none"; }}
+                      />
+                    ) : null}
+                    <span className="sponsor-logo-icon">{getLinkIcon(spot.link_type)}</span>
+                  </div>
+
                   <div className="sponsor-details">
                     <div className="sponsor-header-line">
                       <h3 className="sponsor-handle">
@@ -245,6 +275,7 @@ export default function SponsorsPage({ spots = [], onBackToBoard, onClaimSpot, o
                     </div>
                     <div className="sponsor-meta-row">
                       <span className="spot-num-tag">SPOT #{String(spot.id).padStart(2, "0")}</span>
+                      <span className="spot-dim-tag" title="Billboard Spot Physical Size">📏 {SPOT_DIMENSIONS.width} × {SPOT_DIMENSIONS.height}</span>
                       <span className="spot-category-tag">
                         {getLinkIcon(spot.link_type)} {isClaimed ? spot.category : "Available Spot"}
                       </span>

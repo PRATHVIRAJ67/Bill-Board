@@ -7,23 +7,54 @@ const SPOT_PRICES = [
    35,  35,  25,  25,  25,  // Row 4 (Base Tier: $35–$25)
 ];
 
+const DUMMY_SPONSORS = [
+  { handle: "@super_brand",  category: "AI Platform", color: "#ffd700", link_type: "website",   link_url: "https://superbrand.ai" },
+  { handle: "@quantum_flow", category: "SaaS",        color: "#00d9ff", link_type: "website",   link_url: "https://quantumflow.dev" },
+  { handle: "@hyper_studios",category: "Creative",    color: "#ff5b6a", link_type: "website",   link_url: "https://hyperstudios.design" },
+  { handle: "@cyber_pulse",  category: "DevTool",     color: "#2f7dff", link_type: "website",   link_url: "https://cyberpulse.io" },
+  { handle: "@solarpunk",    category: "Web3",        color: "#00c48c", link_type: "website",   link_url: "https://solarpunk.org" },
+  { handle: "@apex_gaming",  category: "Esports",     color: "#ff9c3a", link_type: "twitter",   link_url: "https://x.com/apexgaming" },
+  { handle: "@syntax_labs",  category: "AI Labs",     color: "#ac6bff", link_type: "website",   link_url: "https://syntaxlabs.ai" },
+  { handle: "@pixel_wave",   category: "Art",         color: "#ff6f47", link_type: "instagram", link_url: "https://instagram.com/pixelwave" },
+  { handle: "@vortex_audio", category: "Music",       color: "#69ffcc", link_type: "telegram",  link_url: "https://t.me/vortexaudio" },
+  { handle: "@prism_core",   category: "Tech",        color: "#e056fd", link_type: "website",   link_url: "https://prismcore.com" },
+  { handle: "@echo_media",   category: "Media",       color: "#f0932b", link_type: "website",   link_url: "https://echomedia.co" },
+  { handle: "@nova_agency",  category: "Agency",      color: "#00b894", link_type: "website",   link_url: "https://novaagency.io" },
+  { handle: "@glitch_sub",   category: "Culture",     color: "#e84393", link_type: "telegram",  link_url: "https://t.me/glitchsub" },
+  { handle: "@orbit_network",category: "Community",   color: "#0984e3", link_type: "twitter",   link_url: "https://x.com/orbitnet" },
+  { handle: "@alpha_forge",  category: "Crypto",      color: "#fdcb6e", link_type: "website",   link_url: "https://alphaforge.xyz" },
+  { handle: "@zenith_app",   category: "Mobile App",  color: "#6c5ce7", link_type: "website",   link_url: "https://zenithapp.io" },
+  { handle: "@pulse_beat",   category: "Sound",       color: "#d63031", link_type: "website",   link_url: "https://pulsebeat.fm" },
+  { handle: "@neon_district",category: "Metaverse",   color: "#00cec9", link_type: "website",   link_url: "https://neondistrict.city" },
+  { handle: "@byte_craft",   category: "Indie Dev",   color: "#badc58", link_type: "twitter",   link_url: "https://x.com/bytecraft" },
+  { handle: "@chrono_space", category: "SpaceTech",   color: "#74b9ff", link_type: "website",   link_url: "https://chronospace.io" },
+];
+
 export const SPOTS = Array.from({ length: 20 }, (_, i) => {
   const id = i + 1;
   const price = SPOT_PRICES[i] || 25;
+  const dummy = DUMMY_SPONSORS[i];
 
   return {
     id,
-    handle: "AVAILABLE",
-    category: "Open",
-    color: "#003340",
-    link_type: "website",
-    link_url: "",
-    claimed: false,
+    handle: dummy.handle,
+    category: dummy.category,
+    color: dummy.color,
+    link_type: dummy.link_type,
+    link_url: dummy.link_url,
+    claimed: true,
     price,
   };
 });
 
 export const BILLBOARD_SCALE = 1.95;
+export const SPOT_DIMENSIONS = {
+  width: "3.6m",
+  height: "1.9m",
+  aspectRatio: "16:9",
+  pixels: "1920 × 1080 (16:9 HD)",
+};
+
 export const GRID = {
   cols: 5,
   rows: 4,
@@ -44,6 +75,23 @@ export function getLinkIcon(linkType) {
     case "custom":    return "🔗";
     default:          return "🌐";
   }
+}
+
+export function getSpotLogoUrl(spot) {
+  if (!spot) return null;
+  if (spot.logo_url) return spot.logo_url;
+  if (spot.link_url) {
+    try {
+      const url = spot.link_url.startsWith("http") ? spot.link_url : `https://${spot.link_url}`;
+      const domain = new URL(url).hostname;
+      if (domain) {
+        return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+      }
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 export function panelWorldPosition(index) {

@@ -612,7 +612,7 @@ function Car({ isMobile, isPortrait = true }) {
 }
 
 /* ---------------------------------------------------- InteractivePanel */
-function InteractivePanel({ spot, index, hoveredId, selectedId, onHover, onSelect }) {
+function InteractivePanel({ spot, index, hoveredId, selectedId, onHover, onSelect, isMobile }) {
   const groupRef = useRef();
   const glowRef = useRef();
   const isHovered = hoveredId === spot.id;
@@ -637,6 +637,8 @@ function InteractivePanel({ spot, index, hoveredId, selectedId, onHover, onSelec
   });
 
   const priceLabel = spot.price ? `$${spot.price}` : null;
+  const brandColor = spot.color || "#00c48c";
+
   return (
     <group
       ref={groupRef}
@@ -659,40 +661,112 @@ function InteractivePanel({ spot, index, hoveredId, selectedId, onHover, onSelec
       }}
     >
       <mesh castShadow>
-        <boxGeometry args={[3.6, 1.9, 0.08]} />
+        <boxGeometry args={[3.6, 1.9, 0.06]} />
         <meshStandardMaterial
-          color={isDimmed ? "#050a0d" : "#0a1115"}
-          metalness={0.7}
-          roughness={0.24}
-          emissive={spot.claimed ? "#071016" : "#003340"}
-          emissiveIntensity={isDimmed ? 0.15 : isHovered ? 1.1 : spot.claimed ? 0.28 : 0.6}
+          color="#03060a"
+          metalness={0.1}
+          roughness={0.85}
+          emissive="#000000"
         />
       </mesh>
       {!spot.claimed && (
-        <mesh ref={glowRef} position={[0, 0, 0.05]}>
-          <planeGeometry args={[3.5, 1.8]} />
+        <mesh ref={glowRef} position={[0, 0, 0.035]}>
+          <planeGeometry args={[3.6, 1.9]} />
           <meshBasicMaterial color={cyan} transparent opacity={0.35} depthWrite={false} />
         </mesh>
       )}
       {spot.claimed && (
-        <mesh position={[0, 0, 0.045]}>
-          <planeGeometry args={[3.44, 1.74]} />
-          <meshBasicMaterial color={spot.color || "#42616a"} transparent opacity={isDimmed ? 0.18 : 0.35} depthWrite={false} />
+        <mesh position={[0, 0, 0.035]}>
+          <planeGeometry args={[3.6, 1.9]} />
+          <meshBasicMaterial color={brandColor} transparent opacity={isDimmed ? 0.35 : 0.65} depthWrite={false} />
         </mesh>
       )}
-      <Text position={[-1.58, 0.72, 0.09]} fontSize={0.22} color="#dbe7e9" anchorX="left" anchorY="middle">
-        {String(spot.id).padStart(2, "0")}
+
+      {/* Spot Number Tag */}
+      <Text
+        position={[-1.52, 0.68, 0.09]}
+        fontSize={isMobile ? 0.25 : 0.22}
+        color="#ffffff"
+        anchorX="left"
+        anchorY="middle"
+        outlineWidth={0.012}
+        outlineColor="#000000"
+      >
+        #{String(spot.id).padStart(2, "0")}
       </Text>
+
       {spot.claimed ? (
-        <Text position={[0, -0.12, 0.09]} fontSize={0.32} color="#ffffff" anchorX="center" anchorY="middle" maxWidth={3.3}>
-          {spot.handle}
-        </Text>
+        <>
+          {/* Category Subtag - Crisp White with Black Outline for Maximum Legibility on Any Color */}
+          {spot.category && (
+            <Text
+              position={[0, 0.38, 0.09]}
+              fontSize={isMobile ? 0.20 : 0.18}
+              color="#ffffff"
+              anchorX="center"
+              anchorY="middle"
+              letterSpacing={0.08}
+              maxWidth={3.2}
+              outlineWidth={0.015}
+              outlineColor="#000000"
+            >
+              {spot.category.toUpperCase()}
+            </Text>
+          )}
+
+          {/* Prominent Bold Brand Handle with Auto-Fitting Font Size */}
+          {(() => {
+            const hText = spot.handle || "";
+            const hLen = hText.length;
+            const hSize =
+              hLen > 17
+                ? (isMobile ? 0.26 : 0.24)
+                : hLen > 13
+                ? (isMobile ? 0.32 : 0.28)
+                : hLen > 8
+                ? (isMobile ? 0.40 : 0.35)
+                : (isMobile ? 0.48 : 0.42);
+
+            return (
+              <Text
+                position={[0, spot.category ? -0.14 : 0, 0.09]}
+                fontSize={hSize}
+                color="#ffffff"
+                anchorX="center"
+                anchorY="middle"
+                maxWidth={3.2}
+                textAlign="center"
+                outlineWidth={0.016}
+                outlineColor="#000000"
+              >
+                {hText}
+              </Text>
+            );
+          })()}
+        </>
       ) : (
         <>
-          <Text position={[0, 0.25, 0.09]} fontSize={0.22} color={cyan} anchorX="center" anchorY="middle" letterSpacing={0.08}>
+          <Text
+            position={[0, 0.26, 0.09]}
+            fontSize={isMobile ? 0.25 : 0.22}
+            color={cyan}
+            anchorX="center"
+            anchorY="middle"
+            letterSpacing={0.08}
+            outlineWidth={0.008}
+            outlineColor="#000000"
+          >
             AVAILABLE
           </Text>
-          <Text position={[0, -0.22, 0.09]} fontSize={0.48} color="#ffffff" anchorX="center" anchorY="middle">
+          <Text
+            position={[0, -0.22, 0.09]}
+            fontSize={isMobile ? 0.54 : 0.48}
+            color="#ffffff"
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.015}
+            outlineColor="#000000"
+          >
             {priceLabel}
           </Text>
         </>
@@ -701,7 +775,7 @@ function InteractivePanel({ spot, index, hoveredId, selectedId, onHover, onSelec
   );
 }
 
-function Panels({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect }) {
+function Panels({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect, isMobile }) {
   const spotsList = (spots && spots.length > 0) ? spots : SPOTS;
   return (
     <group position={[0, GRID.panelsY, GRID.panelsZ]}>
@@ -714,6 +788,7 @@ function Panels({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect }) {
           selectedId={selectedId}
           onHover={onHover}
           onSelect={onSelect}
+          isMobile={isMobile}
         />
       ))}
     </group>
@@ -741,14 +816,8 @@ function Billboard({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect, is
         </mesh>
         <mesh position={[0, 8.2, 0.26]}>
           <boxGeometry args={[19.2, 8.8, 0.06]} />
-          <meshStandardMaterial color="#04080c" metalness={0.5} roughness={0.3} emissive="#021a26" emissiveIntensity={0.35} />
+          <meshStandardMaterial color="#04080c" metalness={0.5} roughness={0.3} emissive="#000000" />
         </mesh>
-
-        {/* Sleek Glowing Cyan Borders */}
-        <mesh position={[0, 12.74, 0.36]}><boxGeometry args={[19.6, 0.12, 0.06]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
-        <mesh position={[0, 3.66, 0.36]}><boxGeometry args={[19.6, 0.12, 0.06]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
-        <mesh position={[-9.8, 8.2, 0.36]}><boxGeometry args={[0.12, 9.2, 0.06]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
-        <mesh position={[9.8, 8.2, 0.36]}><boxGeometry args={[0.12, 9.2, 0.06]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
 
         {/* Support Columns standing OUTSIDE the road */}
         {[-14.2, 14.2].map((x) => (
@@ -770,7 +839,7 @@ function Billboard({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect, is
             <mesh position={[0, -0.38, 0.4]}><sphereGeometry args={[0.12, 12, 8]} /><meshBasicMaterial color="#fff8e0" toneMapped={false} /></mesh>
           </group>
         ))}
-        <Panels spots={spots} hoveredId={hoveredId} selectedId={selectedId} onHover={onHover} onSelect={onSelect} />
+        <Panels spots={spots} hoveredId={hoveredId} selectedId={selectedId} onHover={onHover} onSelect={onSelect} isMobile={isMobile} />
       </group>
     );
   }
@@ -789,13 +858,8 @@ function Billboard({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect, is
       </mesh>
       <mesh position={[0, 8.2, 0.26]}>
         <boxGeometry args={[20.8, 9.2, 0.06]} />
-        <meshStandardMaterial color="#04080c" metalness={0.5} roughness={0.3} emissive="#021a26" emissiveIntensity={0.35} />
+        <meshStandardMaterial color="#04080c" metalness={0.5} roughness={0.3} emissive="#000000" />
       </mesh>
-
-      <mesh position={[0, 13.1, 0.36]}><boxGeometry args={[21.5, 0.14, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
-      <mesh position={[0, 3.3, 0.36]}><boxGeometry args={[21.5, 0.14, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
-      <mesh position={[-10.75, 8.2, 0.36]}><boxGeometry args={[0.14, 9.9, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
-      <mesh position={[10.75, 8.2, 0.36]}><boxGeometry args={[0.14, 9.9, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
 
       {/* Classic Side Support Columns */}
       {[-10.4, 10.4].map((x) => (
@@ -815,7 +879,7 @@ function Billboard({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect, is
           <mesh position={[0, -0.48, 0.44]}><sphereGeometry args={[0.14, 12, 8]} /><meshBasicMaterial color="#fff8e0" toneMapped={false} /></mesh>
         </group>
       ))}
-      <Panels spots={spots} hoveredId={hoveredId} selectedId={selectedId} onHover={onHover} onSelect={onSelect} />
+      <Panels spots={spots} hoveredId={hoveredId} selectedId={selectedId} onHover={onHover} onSelect={onSelect} isMobile={isMobile} />
     </group>
   );
 }
