@@ -78,8 +78,8 @@ function WetRoad({ isMobile }) {
   useFrame((_, delta) =>
     markings.current.forEach((line) => {
       if (line) {
-        line.position.z += delta * 32;
-        if (line.position.z > 20) line.position.z -= 130;
+        line.position.z += delta * 26;
+        if (line.position.z > 14) line.position.z -= 36;
       }
     })
   );
@@ -104,17 +104,17 @@ function WetRoad({ isMobile }) {
         />
       </mesh>
 
-      {/* Dashed lane markings */}
+      {/* Dashed lane markings - only in the active driving foreground (z = -22 to +14) */}
       {[-9, -3, 3, 9].map((x) => (
         <group key={x}>
-          {Array.from({ length: 18 }, (_, i) => (
+          {Array.from({ length: 6 }, (_, i) => (
             <mesh
               key={i}
               ref={(node) => { if (node && !markings.current.includes(node)) markings.current.push(node); }}
-              position={[x, ROAD_SURFACE_Y + 0.006, -i * 7.5 - 2]}
+              position={[x, ROAD_SURFACE_Y + 0.006, -i * 6.5 - 2]}
               rotation={[-Math.PI / 2, 0, 0]}
             >
-              <planeGeometry args={[0.16, 3.6]} />
+              <planeGeometry args={[0.16, 3.2]} />
               <meshBasicMaterial color="#f2f8fa" transparent opacity={0.8} />
             </mesh>
           ))}
@@ -142,35 +142,23 @@ function WetRoad({ isMobile }) {
   );
 }
 
-/* --------------------------------------------------------- Streetlights */
+/* --------------------------------------------------------- Streetlights (Static Highway Infrastructure) */
 function Streetlights() {
-  const lightsRef = useRef([]);
-
   const positions = useMemo(() => {
     const arr = [];
-    for (let i = 0; i < 9; i++) {
-      arr.push({ x: -14.8, z: 8 - i * 13, side: -1 });
-      arr.push({ x: 14.8, z: 8 - i * 13, side: 1 });
+    for (let i = 0; i < 11; i++) {
+      const z = 12 - i * 14;
+      arr.push({ x: -14.8, z, side: -1 });
+      arr.push({ x: 14.8, z, side: 1 });
     }
     return arr;
   }, []);
-
-  useFrame((_, delta) => {
-    lightsRef.current.forEach((light) => {
-      if (!light) return;
-      light.position.z += delta * 24; // Scroll backward matching highway forward speed
-      if (light.position.z > 14) {
-        light.position.z -= 117; // Recycle back to horizon
-      }
-    });
-  });
 
   return (
     <group>
       {positions.map((p, i) => (
         <group
           key={i}
-          ref={(node) => { lightsRef.current[i] = node; }}
           position={[p.x, 0, p.z]}
         >
           <mesh position={[0, 3.5, 0]}>
@@ -509,8 +497,8 @@ function Car({ isMobile, isPortrait = true }) {
   const isMobilePortrait = isMobile && isPortrait;
   const isMobileLandscape = isMobile && !isPortrait;
 
-  const position = isMobilePortrait ? [0, 0, 3.8] : isMobileLandscape ? [0, 0, 2.0] : [-1.25, 0, 1.8];
-  const scale = isMobilePortrait ? 1.08 : isMobileLandscape ? 1.12 : 1.18;
+  const position = isMobilePortrait ? [0, 0, 3.2] : isMobileLandscape ? [-0.9, 0, 2.0] : [-1.25, 0, 1.8];
+  const scale = isMobilePortrait ? 1.05 : isMobileLandscape ? 1.12 : 1.18;
 
   const gltf = useGLTF("/models/ferrari.glb", "https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
   const wheelsRef = useRef([]);
@@ -577,13 +565,13 @@ function Car({ isMobile, isPortrait = true }) {
       const suspensionY = Math.sin(t * 4.2) * 0.0022;
       const pitchX = Math.sin(t * 1.8) * 0.002;
       const steerZ = Math.sin(t * 1.2) * 0.003;
-      const swayOffset = Math.sin(t * 0.8) * (isMobile ? 0.04 : 0.08);
+      const swayOffset = isMobile ? 0 : Math.sin(t * 0.8) * 0.08;
       const swayX = position[0] + swayOffset;
 
       groupRef.current.position.x = swayX;
       groupRef.current.position.y = position[1] + suspensionY + engineVibe;
-      groupRef.current.rotation.x = pitchX;
-      groupRef.current.rotation.z = steerZ;
+      groupRef.current.rotation.x = isMobile ? 0 : pitchX;
+      groupRef.current.rotation.z = isMobile ? 0 : steerZ;
 
       // 3. Supercar audio engine update (V8 engine RPM + Turbo spool + Road noise)
       audioManager.update(delta, heroSpeed, Math.sin(t * 0.5) > 0.6);
@@ -734,12 +722,64 @@ function Panels({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect }) {
 
 /* ---------------------------------------------------------------- Billboard */
 function Billboard({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect, isMobile, isPortrait = true }) {
-  const lamps = useMemo(() => [-12, -8, -4, 0, 4, 8, 12], []);
   const isMobilePortrait = isMobile && isPortrait;
   const isMobileLandscape = isMobile && !isPortrait;
 
-  const bbPos = isMobilePortrait ? [0, 2.1, -26] : isMobileLandscape ? [0, 1.2, -21] : [0, 1.2, -28];
-  const bbScale = isMobilePortrait ? 1.02 : isMobileLandscape ? 2.1 : 1.85;
+  const pcLamps = useMemo(() => [-12, -8, -4, 0, 4, 8, 12], []);
+  const mobileLamps = useMemo(() => [-8, -4, 0, 4, 8], []);
+
+  if (isMobilePortrait) {
+    // ----------------------------------------------------
+    // MOBILE PORTRAIT: Clean Overhead Gantry Structure
+    // ----------------------------------------------------
+    return (
+      <group position={[0, 0, -28]} scale={1.0}>
+        {/* Billboard Frame Housing */}
+        <mesh position={[0, 8.2, 0]} castShadow>
+          <boxGeometry args={[19.6, 9.2, 0.45]} />
+          <meshStandardMaterial color="#0a1015" metalness={0.84} roughness={0.24} />
+        </mesh>
+        <mesh position={[0, 8.2, 0.26]}>
+          <boxGeometry args={[19.2, 8.8, 0.06]} />
+          <meshStandardMaterial color="#04080c" metalness={0.5} roughness={0.3} emissive="#021a26" emissiveIntensity={0.35} />
+        </mesh>
+
+        {/* Sleek Glowing Cyan Borders */}
+        <mesh position={[0, 12.74, 0.36]}><boxGeometry args={[19.6, 0.12, 0.06]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
+        <mesh position={[0, 3.66, 0.36]}><boxGeometry args={[19.6, 0.12, 0.06]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
+        <mesh position={[-9.8, 8.2, 0.36]}><boxGeometry args={[0.12, 9.2, 0.06]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
+        <mesh position={[9.8, 8.2, 0.36]}><boxGeometry args={[0.12, 9.2, 0.06]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
+
+        {/* Support Columns standing OUTSIDE the road */}
+        {[-14.2, 14.2].map((x) => (
+          <mesh key={x} position={[x, 4.0, 0]} castShadow>
+            <boxGeometry args={[0.75, 18.0, 0.9]} />
+            <meshStandardMaterial color="#24323a" metalness={0.92} roughness={0.28} />
+          </mesh>
+        ))}
+
+        {/* Overhead Gantry Horizontal Support Beams */}
+        <mesh position={[0, 3.4, 0]} castShadow><boxGeometry args={[28.8, 0.45, 0.75]} /><meshStandardMaterial color="#1e2a32" metalness={0.9} /></mesh>
+        <mesh position={[0, 13.0, 0]} castShadow><boxGeometry args={[28.8, 0.45, 0.75]} /><meshStandardMaterial color="#1e2a32" metalness={0.9} /></mesh>
+
+        {/* Top Floodlamps */}
+        {mobileLamps.map((x, i) => (
+          <group key={i} position={[x, 13.3, 0.16]}>
+            <mesh><boxGeometry args={[0.08, 0.5, 0.08]} /><meshStandardMaterial color="#28353f" metalness={0.88} roughness={0.32} /></mesh>
+            <mesh position={[0, -0.22, 0.24]} rotation={[0.92, 0, 0]}><boxGeometry args={[0.6, 0.16, 0.38]} /><meshStandardMaterial color="#28353f" metalness={0.88} roughness={0.32} /></mesh>
+            <mesh position={[0, -0.38, 0.4]}><sphereGeometry args={[0.12, 12, 8]} /><meshBasicMaterial color="#fff8e0" toneMapped={false} /></mesh>
+          </group>
+        ))}
+        <Panels spots={spots} hoveredId={hoveredId} selectedId={selectedId} onHover={onHover} onSelect={onSelect} />
+      </group>
+    );
+  }
+
+  // ------------------------------------------------------
+  // PC / DESKTOP: Original Majestic Highway Billboard
+  // ------------------------------------------------------
+  const bbPos = isMobileLandscape ? [0, 1.2, -21] : [0, 1.2, -28];
+  const bbScale = isMobileLandscape ? 2.1 : 1.85;
 
   return (
     <group position={bbPos} scale={bbScale}>
@@ -755,8 +795,9 @@ function Billboard({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect, is
       <mesh position={[0, 13.1, 0.36]}><boxGeometry args={[21.5, 0.14, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
       <mesh position={[0, 3.3, 0.36]}><boxGeometry args={[21.5, 0.14, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
       <mesh position={[-10.75, 8.2, 0.36]}><boxGeometry args={[0.14, 9.9, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
-      <mesh position={[10.75, 8.2, 0.36]}><boxGeometry args={[0.14, 8.7, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
+      <mesh position={[10.75, 8.2, 0.36]}><boxGeometry args={[0.14, 9.9, 0.07]} /><meshBasicMaterial color={cyan} toneMapped={false} /></mesh>
 
+      {/* Classic Side Support Columns */}
       {[-10.4, 10.4].map((x) => (
         <mesh key={x} position={[x, 5.1, 0]} castShadow>
           <boxGeometry args={[0.55, 14.5, 0.9]} />
@@ -764,17 +805,10 @@ function Billboard({ spots = SPOTS, hoveredId, selectedId, onHover, onSelect, is
         </mesh>
       ))}
 
-      {[-6, 0, 6].map((x) => (
-        <group key={x} position={[x, 2.2, 0]}>
-          <mesh rotation={[0, 0, 0.35]}><boxGeometry args={[0.1, 2.5, 0.16]} /><meshStandardMaterial color="#18242e" metalness={0.88} roughness={0.32} /></mesh>
-          <mesh rotation={[0, 0, -0.35]}><boxGeometry args={[0.1, 2.5, 0.16]} /><meshStandardMaterial color="#18242e" metalness={0.88} roughness={0.32} /></mesh>
-        </group>
-      ))}
-      <mesh position={[0, 1.2, 0]} castShadow><boxGeometry args={[1.3, 1.5, 1.4]} /><meshStandardMaterial color="#18242c" metalness={0.88} /></mesh>
-      <mesh position={[0, 2.2, 0]} castShadow><boxGeometry args={[17.2, 0.55, 0.76]} /><meshStandardMaterial color="#1e2a32" metalness={0.9} /></mesh>
       <mesh position={[0, 14.8, 0]} castShadow><boxGeometry args={[21.8, 0.48, 0.8]} /><meshStandardMaterial color="#1e2a32" metalness={0.9} /></mesh>
 
-      {lamps.map((x, i) => (
+      {/* Classic Floodlamps */}
+      {pcLamps.map((x, i) => (
         <group key={i} position={[x, 13.5, 0.16]}>
           <mesh><boxGeometry args={[0.08, 0.72, 0.08]} /><meshStandardMaterial color="#28353f" metalness={0.88} roughness={0.32} /></mesh>
           <mesh position={[0, -0.3, 0.26]} rotation={[0.92, 0, 0]}><boxGeometry args={[0.68, 0.18, 0.42]} /><meshStandardMaterial color="#28353f" metalness={0.88} roughness={0.32} /></mesh>
@@ -793,7 +827,7 @@ function SceneCamera({ cameraMode = "cinematic", isMobile, isPortrait = true, zo
   const isMobilePortrait = isMobile && isPortrait;
   const isMobileLandscape = isMobile && !isPortrait;
 
-  const currentLookAt = useRef(new THREE.Vector3(0, isMobilePortrait ? 4.7 : isMobileLandscape ? 5.0 : 5.2, -18));
+  const currentLookAt = useRef(new THREE.Vector3(0, isMobilePortrait ? 6.2 : isMobileLandscape ? 5.0 : 5.2, -28));
   
   useEffect(() => { elapsed.current = 0; }, [cameraMode, resetTick]);
 
@@ -835,11 +869,11 @@ function SceneCamera({ cameraMode = "cinematic", isMobile, isPortrait = true, zo
     } else if (cameraMode === "cinematic") {
       // Classic Ferrari Rear View facing Billboard directly
       if (isMobilePortrait) {
-        const targetZ = 10.8 + zoomOffset;
+        const targetZ = 10.4 + zoomOffset;
         camera.position.x = THREE.MathUtils.damp(camera.position.x, 0, 3.5, delta);
         camera.position.z = THREE.MathUtils.damp(camera.position.z, targetZ, 3.5, delta);
-        camera.position.y = THREE.MathUtils.damp(camera.position.y, 2.1 + Math.sin(elapsed.current * 0.22) * 0.04, 3.5, delta);
-        currentLookAt.current.set(0, 4.7, -18);
+        camera.position.y = THREE.MathUtils.damp(camera.position.y, 2.2, 3.5, delta);
+        currentLookAt.current.set(0, 6.2, -28);
         camera.lookAt(currentLookAt.current);
       } else if (isMobileLandscape) {
         const targetZ = 5.6 + zoomOffset;

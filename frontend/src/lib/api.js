@@ -3,7 +3,10 @@
  * All spot data, booking handles, and payment logic are handled 100% in the backend.
  */
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const BACKEND_URL =
+  (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL)) ||
+  (typeof process !== 'undefined' && process.env && process.env.REACT_APP_BACKEND_URL) ||
+  'http://localhost:8000';
 
 /**
  * Fetch live spots from backend API

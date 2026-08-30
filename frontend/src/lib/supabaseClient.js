@@ -1,8 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
-const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL || 'https://nyfyofcjnphwhxciaqox.supabase.co';
-const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55ZnlvZmNqbnBod2h4Y2lhcW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc5OTYyNjAsImV4cCI6MjEwMzU3MjI2MH0.tXw5p38PbqdbGmALysxIav5rF3XY-qA6VWzXXQO_1TA';
+const BACKEND_URL =
+  (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL)) ||
+  (typeof process !== 'undefined' && process.env && process.env.REACT_APP_BACKEND_URL) ||
+  'http://localhost:8000';
+
+const SUPABASE_URL =
+  (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_SUPABASE_URL || import.meta.env.REACT_APP_SUPABASE_URL)) ||
+  (typeof process !== 'undefined' && process.env && process.env.REACT_APP_SUPABASE_URL) ||
+  'https://nyfyofcjnphwhxciaqox.supabase.co';
+
+const SUPABASE_ANON_KEY =
+  (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.REACT_APP_SUPABASE_ANON_KEY)) ||
+  (typeof process !== 'undefined' && process.env && process.env.REACT_APP_SUPABASE_ANON_KEY) ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55ZnlvZmNqbnBod2h4Y2lhcW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc5OTYyNjAsImV4cCI6MjEwMzU3MjI2MH0.tXw5p38PbqdbGmALysxIav5rF3XY-qA6VWzXXQO_1TA';
 
 // Initialize Supabase Client for real-time pub/sub listeners
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

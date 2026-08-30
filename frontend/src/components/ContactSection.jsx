@@ -1,0 +1,204 @@
+import { useState } from "react";
+import { audioManager } from "@/lib/audioManager";
+
+export default function ContactSection() {
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    topic: "sponsorship",
+    message: "",
+  });
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    audioManager.playAction();
+    setLoading(true);
+
+    // Simulate clean dispatch or webhook
+    setTimeout(() => {
+      setLoading(false);
+      setSubmitted(true);
+    }, 800);
+  };
+
+  return (
+    <section id="contact" className="contact-section" data-testid="contact-section">
+      <div className="section-container">
+        <div className="section-header">
+          <div className="section-eyebrow">◈ GET IN TOUCH</div>
+          <h2 className="section-title">
+            CONTACT & <em>PARTNERSHIPS</em>
+          </h2>
+          <p className="section-subtitle">
+            Have questions, custom sponsorship inquiries, or need support with your spot? Reach out anytime.
+          </p>
+        </div>
+
+        <div className="contact-grid">
+          {/* Left Column: Direct Channels */}
+          <div className="contact-channels-card">
+            <h3 className="channels-title">DIRECT CHANNELS</h3>
+            <p className="channels-desc">
+              Connect directly with the creator of The Internet's Billboard. We respond to all inquiries within 24 hours.
+            </p>
+
+            <div className="channel-links">
+              <a
+                href="mailto:contact@theinternetsbillboard.com"
+                className="channel-item"
+                onClick={() => audioManager.playSelect()}
+              >
+                <div className="channel-icon">✉️</div>
+                <div className="channel-info">
+                  <span className="channel-label">EMAIL</span>
+                  <span className="channel-value">support@theboard.com</span>
+                </div>
+                <span className="channel-arrow">↗</span>
+              </a>
+
+              <a
+                href="https://t.me/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="channel-item"
+                onClick={() => audioManager.playSelect()}
+              >
+                <div className="channel-icon">✈️</div>
+                <div className="channel-info">
+                  <span className="channel-label">TELEGRAM</span>
+                  <span className="channel-value">@TheBoardAdmin</span>
+                </div>
+                <span className="channel-arrow">↗</span>
+              </a>
+
+              <a
+                href="https://x.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="channel-item"
+                onClick={() => audioManager.playSelect()}
+              >
+                <div className="channel-icon">𝕏</div>
+                <div className="channel-info">
+                  <span className="channel-label">TWITTER / X</span>
+                  <span className="channel-value">@TheBoardOfficial</span>
+                </div>
+                <span className="channel-arrow">↗</span>
+              </a>
+
+              <a
+                href="https://github.com/PRATHVIRAJ67/Bill-Board"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="channel-item"
+                onClick={() => audioManager.playSelect()}
+              >
+                <div className="channel-icon">🐙</div>
+                <div className="channel-info">
+                  <span className="channel-label">GITHUB REPO</span>
+                  <span className="channel-value">PRATHVIRAJ67/Bill-Board</span>
+                </div>
+                <span className="channel-arrow">↗</span>
+              </a>
+            </div>
+
+            <div className="channel-live-status">
+              <span className="status-ping" />
+              <span>SYSTEM STATUS: 100% OPERATIONAL · 20 SPOTS LIVE</span>
+            </div>
+          </div>
+
+          {/* Right Column: Quick Contact Form */}
+          <div className="contact-form-card">
+            {submitted ? (
+              <div className="contact-success-state">
+                <div className="success-icon">✓</div>
+                <h3>Message Sent Successfully!</h3>
+                <p>
+                  Thank you for reaching out, <strong>{formData.name}</strong>. We have received your inquiry and will reply to <strong>{formData.email}</strong> shortly.
+                </p>
+                <button
+                  className="reset-form-btn"
+                  onClick={() => {
+                    setSubmitted(false);
+                    setFormData({ name: "", email: "", topic: "sponsorship", message: "" });
+                  }}
+                >
+                  SEND ANOTHER MESSAGE
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="contact-form">
+                <h3 className="form-title">SEND A MESSAGE</h3>
+
+                <div className="form-group">
+                  <label htmlFor="c-name">YOUR NAME</label>
+                  <input
+                    id="c-name"
+                    type="text"
+                    name="name"
+                    required
+                    placeholder="e.g. Alex Vance"
+                    value={formData.name}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="c-email">EMAIL ADDRESS</label>
+                  <input
+                    id="c-email"
+                    type="email"
+                    name="email"
+                    required
+                    placeholder="alex@yourbrand.com"
+                    value={formData.email}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="c-topic">TOPIC / INQUIRY TYPE</label>
+                  <select
+                    id="c-topic"
+                    name="topic"
+                    value={formData.topic}
+                    onChange={handleChange}
+                  >
+                    <option value="sponsorship">Billboard Spot / Sponsorship</option>
+                    <option value="link-update">Update Existing Spot Link / Handle</option>
+                    <option value="bulk">Custom Multi-Spot Partnership</option>
+                    <option value="technical">Technical Support / Bug Report</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="c-msg">MESSAGE</label>
+                  <textarea
+                    id="c-msg"
+                    name="message"
+                    required
+                    rows={4}
+                    placeholder="Tell us about your brand or question..."
+                    value={formData.message}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <button type="submit" className="contact-submit-btn" disabled={loading}>
+                  {loading ? "SENDING MESSAGE..." : "SEND MESSAGE ↗"}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

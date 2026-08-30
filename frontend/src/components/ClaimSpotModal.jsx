@@ -112,11 +112,18 @@ export default function ClaimSpotModal({ spot, onClose, onClaimSuccess }) {
           ✕
         </button>
 
+        {/* Modal Header */}
         <div className="claim-modal-header">
-          <div className="claim-spot-tag">CLAIMING SPOT #{String(spot.id).padStart(2, "0")} · EDITION #1</div>
+          <div className="claim-header-top">
+            <span className="claim-spot-tag">SPOT #{String(spot.id).padStart(2, "0")} · EDITION #1</span>
+            <span className="onetime-tag">LIFETIME OWNERSHIP</span>
+          </div>
           <h2>PUT YOUR BRAND ON THE BOARD</h2>
-          <p className="claim-price-badge">TOTAL PRICE: <strong>${price} USD</strong> <span className="onetime-tag">ONE-TIME · OWN FOREVER</span></p>
-          <p className="claim-fomo-note">⚡ Lifetime Ownership — Zero monthly fees or recurring charges.</p>
+          <div className="claim-price-bar">
+            <span className="price-label">LIFETIME SPOT PRICE:</span>
+            <strong className="price-val">${price} USD</strong>
+            <span className="zero-fees-badge">⚡ ZERO MONTHLY FEES</span>
+          </div>
         </div>
 
         <form onSubmit={handleFormSubmit} className="claim-form">
@@ -142,7 +149,7 @@ export default function ClaimSpotModal({ spot, onClose, onClaimSuccess }) {
 
           {/* Form Field 2: Link Type */}
           <div className="form-group">
-            <label>2. CHOOSE LINK TYPE</label>
+            <label>2. CHOOSE DESTINATION TYPE</label>
             <div className="link-type-grid">
               {LINK_TYPES.map((lt) => (
                 <button
@@ -159,7 +166,7 @@ export default function ClaimSpotModal({ spot, onClose, onClaimSuccess }) {
 
           {/* Form Field 3: Destination URL */}
           <div className="form-group">
-            <label>3. DESTINATION URL (WHERE USERS GO WHEN CLICKED)</label>
+            <label>3. DESTINATION URL (WHEN CLICKED)</label>
             <input
               type="url"
               placeholder={
@@ -175,7 +182,6 @@ export default function ClaimSpotModal({ spot, onClose, onClaimSuccess }) {
               autoCapitalize="none"
               spellCheck="false"
             />
-            <small>When visitors click your spot on the 3D board, they will be directed here.</small>
           </div>
 
           {/* Form Field 4: Category & Color */}
@@ -207,8 +213,11 @@ export default function ClaimSpotModal({ spot, onClose, onClaimSuccess }) {
 
           {/* Live Preview Panel */}
           <div className="claim-live-preview">
-            <span className="preview-label">3D PANEL PREVIEW:</span>
-            <div className="preview-panel-card" style={{ borderColor: color, boxShadow: `0 0 16px ${color}55` }}>
+            <div className="preview-top-row">
+              <span className="preview-label">LIVE 3D BOARD PREVIEW</span>
+              <span className="preview-indicator">● READY</span>
+            </div>
+            <div className="preview-panel-card" style={{ borderColor: color, boxShadow: `0 0 16px ${color}44` }}>
               <span className="pp-num">#{String(spot.id).padStart(2, "0")}</span>
               <span className="pp-handle" style={{ color: "#ffffff" }}>
                 {handle.trim() || "@yourbrand"}
@@ -219,9 +228,9 @@ export default function ClaimSpotModal({ spot, onClose, onClaimSuccess }) {
 
           {/* Razorpay Submit Button */}
           <button type="submit" className="claim-pay-btn" disabled={isProcessing}>
-            {isProcessing ? "PROCESSING PAYMENT..." : `PAY WITH RAZORPAY ($${price}) →`}
+            {isProcessing ? "PROCESSING CHECKOUT..." : `PAY WITH RAZORPAY ($${price} USD) →`}
           </button>
-          <p className="pay-secure-note">⚡ Secured via Razorpay Gateway & Supabase DB Sync</p>
+          <p className="pay-secure-note">🔒 Secured 256-bit Razorpay Checkout · Instant Live Board Sync</p>
         </form>
       </div>
     </div>

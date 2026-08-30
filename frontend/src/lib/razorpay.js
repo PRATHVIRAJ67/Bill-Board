@@ -31,7 +31,10 @@ export async function openRazorpayCheckout({ amountUSD, spotId, handle, spotPayl
   const amountInINR = Math.round(amountUSD * 83);
   const amountInPaise = amountInINR * 100;
 
-  const key = process.env.REACT_APP_RAZORPAY_KEY_ID || "rzp_test_billboard_key";
+  const key =
+    (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_RAZORPAY_KEY_ID || import.meta.env.REACT_APP_RAZORPAY_KEY_ID)) ||
+    (typeof process !== 'undefined' && process.env && process.env.REACT_APP_RAZORPAY_KEY_ID) ||
+    "rzp_test_billboard_key";
 
   const options = {
     key,
@@ -39,7 +42,6 @@ export async function openRazorpayCheckout({ amountUSD, spotId, handle, spotPayl
     currency: "INR",
     name: "THE BOARD",
     description: `Claim Spot #${String(spotId).padStart(2, "0")} (${handle})`,
-    image: "https://assets.emergent.sh/billboard-icon.png",
     prefill: {
       name: handle,
       email: "billing@theboard.live",

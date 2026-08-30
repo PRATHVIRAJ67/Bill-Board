@@ -1,13 +1,10 @@
 // 20 physical spots on the billboard (5 columns x 4 rows).
-// Structured symmetrical pricing pyramid:
-// Center prime spots: $125 max price
-// Inner ring spots: $75 / $50
-// Outer edge spots: $25 min entry price
+// Ordered strictly by amount descending: Spot 1 is highest amount ($125)
 const SPOT_PRICES = [
-  25,  50,  75,  50,  25,  // Row 1 (Top)
-  25,  75, 125,  75,  25,  // Row 2 (Prime Upper)
-  25,  75, 125,  75,  25,  // Row 3 (Prime Lower)
-  25,  50,  75,  50,  25,  // Row 4 (Bottom)
+  125, 100, 100,  85,  85,  // Row 1 (Top / Highest Tier: Spot 1 is #1 $125)
+   75,  75,  75,  65,  65,  // Row 2 (Upper Tier: $75–$65)
+   50,  50,  50,  40,  40,  // Row 3 (Mid Tier: $50–$40)
+   35,  35,  25,  25,  25,  // Row 4 (Base Tier: $35–$25)
 ];
 
 export const SPOTS = Array.from({ length: 20 }, (_, i) => {
