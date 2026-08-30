@@ -1,6 +1,7 @@
 /**
- * Razorpay Payment Gateway Integration Helper
+ * Razorpay Standard Web Checkout Integration
  */
+import { createRazorpayOrder, verifyRazorpayPayment } from './api';
 
 // Dynamically load Razorpay SDK
 export function loadRazorpayScript() {
@@ -20,68 +21,108 @@ export function loadRazorpayScript() {
 /**
  * Open Razorpay Payment Gateway Checkout Modal
  */
-export async function openRazorpayCheckout({ amountUSD, spotId, handle, spotPayload, onSuccess, onFailure }) {
+export async function openRazorpayCheckout({
+  amountUSD,
+  spotId,
+  handle,
+  spotPayload = {},
+  onSuccess,
+  onFailure,
+  onOrderCreated,
+}) {
+  // 1. Ensure Razorpay SDK is loaded
   const isLoaded = await loadRazorpayScript();
   if (!isLoaded) {
-    if (onFailure) onFailure("Razorpay SDK failed to load. Please check your internet connection.");
+    if (onFailure) onFailure("Razorpay SDK failed to load. Please check your network connection.");
     return;
   }
 
-  // Convert USD price to INR cents (approx 1 USD = 83 INR for Razorpay INR default)
-  const amountInINR = Math.round(amountUSD * 83);
-  const amountInPaise = amountInINR * 100;
+  // 2. Step 1: Create Order on Backend
+  const orderRes = await createRazorpayOrder({
+    amountUSD,
+    spotId,
+    handle,
+  });
 
+  if (!orderRes.success || !orderRes.data?.order_id) {
+    if (onFailure) onFailure(orderRes.error || "Failed to create order on server. Please try again.");
+    return;
+  }
+
+  const orderData = orderRes.data;
+  if (onOrderCreated) onOrderCreated(orderData);
+
+  // Get Public Key ID from environment
   const key =
     (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_RAZORPAY_KEY_ID || import.meta.env.REACT_APP_RAZORPAY_KEY_ID)) ||
     (typeof process !== 'undefined' && process.env && process.env.REACT_APP_RAZORPAY_KEY_ID) ||
-    "rzp_test_billboard_key";
+    "rzp_test_TVtzzS51l0oAyp";
 
+  // 3. Step 2: Configure Checkout Modal Options
   const options = {
-    key,
-    amount: amountInPaise,
-    currency: "INR",
+    key: key,
+    amount: orderData.amount,
+    currency: orderData.currency || "INR",
     name: "THE BOARD",
     description: `Claim Spot #${String(spotId).padStart(2, "0")} (${handle})`,
+    order_id: orderData.order_id,
     prefill: {
-      name: handle,
+      name: handle.replace(/^@/, ""),
       email: "billing@theboard.live",
       contact: "9999999999",
     },
     theme: {
       color: spotPayload.color || "#00c48c",
     },
-    handler: function (response) {
-      if (onSuccess) {
-        onSuccess({
-          paymentId: response.razorpay_payment_id,
-          orderId: response.razorpay_order_id || `order_demo_${Date.now()}`,
-          signature: response.razorpay_signature || "demo_sig",
-          spotId,
-          handle,
-        });
+    // On Payment Success in Modal
+    handler: async function (response) {
+      const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = response;
+
+      // 4. Step 3: Verify Payment Signature via Backend
+      const verifyRes = await verifyRazorpayPayment({
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature,
+        spotId,
+      });
+
+      if (verifyRes.success) {
+        if (onSuccess) {
+          onSuccess({
+            paymentId: razorpay_payment_id,
+            orderId: razorpay_order_id,
+            signature: razorpay_signature,
+            spotId,
+            handle,
+          });
+        }
+      } else {
+        if (onFailure) {
+          onFailure(verifyRes.error || "Payment verification signature check failed.");
+        }
       }
     },
     modal: {
       ondismiss: function () {
-        if (onFailure) onFailure("Checkout cancelled by user");
+        if (onFailure) onFailure("Payment checkout cancelled by user.");
       },
     },
   };
 
   try {
     const rzp = new window.Razorpay(options);
+    
+    // Attach payment.failed event handler
+    rzp.on("payment.failed", function (response) {
+      console.error("Razorpay Payment Failed:", response.error);
+      if (onFailure) {
+        onFailure(`Payment failed: ${response.error.description || response.error.reason || 'Transaction declined'}`);
+      }
+    });
+
     rzp.open();
   } catch (err) {
     console.error("Razorpay Modal launch error:", err);
-    // If test key is not a valid Razorpay Key ID, provide instant demo approval option
-    if (onSuccess) {
-      onSuccess({
-        paymentId: `pay_demo_${Date.now()}`,
-        orderId: `order_demo_${Date.now()}`,
-        signature: "demo_sig",
-        spotId,
-        handle,
-      });
-    }
+    if (onFailure) onFailure(err.message || "Failed to open payment gateway.");
   }
 }
