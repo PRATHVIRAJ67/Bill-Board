@@ -15,16 +15,46 @@ export default function ContactSection() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     audioManager.playAction();
     setLoading(true);
 
-    // Simulate clean dispatch or webhook
-    setTimeout(() => {
+    try {
+      // Send directly to prathviholla67@gmail.com via FormSubmit AJAX API
+      const res = await fetch("https://formsubmit.co/ajax/prathviholla67@gmail.com", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          topic: formData.topic,
+          message: formData.message,
+          _subject: `[The Board] New Inquiry from ${formData.name} - ${formData.topic.toUpperCase()}`,
+          _template: "table",
+        }),
+      });
+
+      if (res.ok) {
+        setLoading(false);
+        setSubmitted(true);
+      } else {
+        // Fallback: open user's default email client
+        const mailtoUrl = `mailto:prathviholla67@gmail.com?subject=${encodeURIComponent(`[The Board Inquiry] ${formData.topic}`)}&body=${encodeURIComponent(`Name: ${formData.name}\nEmail: ${formData.email}\nTopic: ${formData.topic}\n\nMessage:\n${formData.message}`)}`;
+        window.open(mailtoUrl, "_blank");
+        setLoading(false);
+        setSubmitted(true);
+      }
+    } catch {
+      // Fallback: open mail client on network fail
+      const mailtoUrl = `mailto:prathviholla67@gmail.com?subject=${encodeURIComponent(`[The Board Inquiry] ${formData.topic}`)}&body=${encodeURIComponent(`Name: ${formData.name}\nEmail: ${formData.email}\nTopic: ${formData.topic}\n\nMessage:\n${formData.message}`)}`;
+      window.open(mailtoUrl, "_blank");
       setLoading(false);
       setSubmitted(true);
-    }, 800);
+    }
   };
 
   return (
