@@ -8,6 +8,7 @@ import ClaimSpotModal from "@/components/ClaimSpotModal";
 import SponsorsPage from "./components/SponsorsPage";
 import FaqSection from "./components/FaqSection";
 import ContactSection from "./components/ContactSection";
+import PolicyModal from "./components/PolicyModal";
 import { SPOTS, getLinkIcon } from "@/components/spotData";
 import { fetchLiveSpots } from "@/lib/api";
 import { audioManager } from "@/lib/audioManager";
@@ -54,6 +55,7 @@ export default function App() {
   const [resetTick, setResetTick] = useState(0);
   const [spotsList, setSpotsList] = useState(SPOTS);
   const [claimModalSpot, setClaimModalSpot] = useState(null);
+  const [policyModalKey, setPolicyModalKey] = useState(null);
   const { isMobile, isPortrait } = useScreenState();
 
   const handleToggleSound = (e) => {
@@ -497,6 +499,9 @@ export default function App() {
             <div className="footer-brand">
               <h3>THE BOARD <span>•</span></h3>
               <p>The Internet's Billboard — Premium Lifetime 3D Advertising Space.</p>
+              <div className="footer-merchant-badge">
+                <span>MERCHANT: PRATHVIRAJ HOLLA</span> · <span>SUPPORT: prathviholla67@gmail.com</span>
+              </div>
             </div>
             <div className="footer-nav">
               <button onClick={() => scrollToSection("board")}>The Board</button>
@@ -506,6 +511,20 @@ export default function App() {
               <button onClick={handleOpenClaimFirstAvailable} className="footer-claim-link">Claim Spot ↗</button>
             </div>
           </div>
+
+          <div className="footer-policy-row" data-testid="footer-policies">
+            <span className="policy-group-title">LEGAL & POLICIES:</span>
+            <button onClick={() => { audioManager.playSelect(); setPolicyModalKey("terms"); }}>Terms & Conditions</button>
+            <span className="policy-divider">·</span>
+            <button onClick={() => { audioManager.playSelect(); setPolicyModalKey("privacy"); }}>Privacy Policy</button>
+            <span className="policy-divider">·</span>
+            <button onClick={() => { audioManager.playSelect(); setPolicyModalKey("refund"); }}>Refund & Cancellation</button>
+            <span className="policy-divider">·</span>
+            <button onClick={() => { audioManager.playSelect(); setPolicyModalKey("delivery"); }}>Shipping & Delivery</button>
+            <span className="policy-divider">·</span>
+            <button onClick={() => { audioManager.playSelect(); setPolicyModalKey("contact"); }}>Contact Us</button>
+          </div>
+
           <div className="footer-bottom">
             <p>© {new Date().getFullYear()} The Internet's Billboard. All rights reserved. 20 Lifetime Spots.</p>
             <button className="back-to-top-btn" onClick={() => scrollToSection("board")}>
@@ -514,6 +533,14 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* Razorpay Compliance Legal Policy Modal */}
+      {policyModalKey && (
+        <PolicyModal
+          policyKey={policyModalKey}
+          onClose={() => setPolicyModalKey(null)}
+        />
+      )}
 
       {/* Claim Spot Form & Razorpay Payment Modal (Top Level) */}
       {claimModalSpot && (

@@ -23,6 +23,14 @@ const FAQ_ITEMS = [
     a: "Payments are processed securely through Razorpay with 256-bit encryption. We support UPI (Google Pay, PhonePe, Paytm), Credit/Debit Cards, NetBanking, and International Cards. Your billboard panel updates live immediately upon payment confirmation.",
   },
   {
+    q: "What is the Refund and Cancellation Policy?",
+    a: "Because spots are instantly rendered and registered on the live 3D billboard upon checkout, claimed spots are digital non-refundable goods. However, in the event of an accidental double-charge or technical verification issue, a 100% full refund is issued to your original payment method within 5–7 business days. For support, contact prathviholla67@gmail.com.",
+  },
+  {
+    q: "How does digital delivery work?",
+    a: "Digital delivery is instantaneous. The moment your Razorpay payment is authorized, our automated backend verifies the transaction and syncs your brand to the 3D billboard and public database within seconds.",
+  },
+  {
     q: "What types of websites and links can I promote?",
     a: "You can promote startups, personal portfolios, SaaS products, YouTube/Twitch channels, X/Twitter handles, Telegram communities, and business websites. Malicious, deceptive, or illegal content is strictly prohibited.",
   },

@@ -2,6 +2,45 @@ import { useState, useMemo } from "react";
 import { getLinkIcon, getSpotLogoUrl, SPOT_DIMENSIONS } from "@/components/spotData";
 import { audioManager } from "@/lib/audioManager";
 
+function SponsorLogoAvatar({ spot, size = "standard" }) {
+  const [imgError, setImgError] = useState(false);
+  const logoUrl = getSpotLogoUrl(spot);
+  const isClaimed = spot?.claimed;
+  const brandColor = spot?.color || "#ffd700";
+
+  const isSpotlight = size === "spotlight";
+  const containerClass = isSpotlight ? "spotlight-avatar" : "sponsor-logo-box";
+  const imgClass = isSpotlight ? "spotlight-logo-img" : "sponsor-logo-img";
+  const iconClass = isSpotlight ? "spotlight-avatar-icon" : "sponsor-logo-icon";
+
+  const showImage = Boolean(isClaimed && logoUrl && !imgError);
+
+  return (
+    <div
+      className={containerClass}
+      style={{
+        borderColor: isClaimed ? brandColor : "rgba(0, 217, 255, 0.25)",
+        background: showImage ? "#ffffff" : isClaimed ? `${brandColor}22` : "#040a10",
+        boxShadow: isSpotlight ? `0 0 20px ${brandColor}44` : undefined,
+      }}
+    >
+      {showImage ? (
+        <img
+          src={logoUrl}
+          alt={spot.handle || "Sponsor Logo"}
+          className={imgClass}
+          onError={() => setImgError(true)}
+          loading="lazy"
+        />
+      ) : (
+        <span className={iconClass}>
+          {isClaimed ? getLinkIcon(spot.link_type) : "⚡"}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function SponsorsPage({ spots = [], onBackToBoard, onClaimSpot, onInspectSpot }) {
   const [filter, setFilter] = useState("all"); // 'all' | 'claimed' | 'available'
   const [searchQuery, setSearchQuery] = useState("");
@@ -122,68 +161,52 @@ export default function SponsorsPage({ spots = [], onBackToBoard, onClaimSpot, o
         </header>
 
         {/* Featured #1 Sponsor Hero Banner if claimed OR Open Invitation */}
-        {stats.topClaimed ? (() => {
-          const topLogo = getSpotLogoUrl(stats.topClaimed);
-          return (
-            <div
-              className="top-sponsor-spotlight"
-              onClick={() => handleCardClick(stats.topClaimed)}
-              style={{ cursor: "pointer" }}
-              data-testid="top-sponsor-spotlight"
-            >
-              <div className="spotlight-badge">👑 #1 RANKED SPONSOR SPOTLIGHT</div>
-              <div className="spotlight-content">
-                <div
-                  className="spotlight-avatar"
-                  style={{ borderColor: stats.topClaimed.color || "#ffd700", boxShadow: `0 0 20px ${(stats.topClaimed.color || "#ffd700")}44` }}
-                >
-                  {topLogo ? (
-                    <img
-                      src={topLogo}
-                      alt={stats.topClaimed.handle}
-                      className="spotlight-logo-img"
-                      onError={(e) => { e.target.style.display = "none"; }}
-                    />
-                  ) : null}
-                  <span className="spotlight-avatar-icon">{getLinkIcon(stats.topClaimed.link_type)}</span>
-                </div>
-                <div className="spotlight-info">
-                  <h2>{stats.topClaimed.handle}</h2>
-                  <p>
-                    {stats.topClaimed.category} · Spot #{String(stats.topClaimed.id).padStart(2, "0")} (Tier: Prime #1)
-                  </p>
-                  <div className="spotlight-specs-row">
-                    <span className="spotlight-dim-badge">📏 {SPOT_DIMENSIONS.width} × {SPOT_DIMENSIONS.height} ({SPOT_DIMENSIONS.aspectRatio})</span>
-                    {stats.topClaimed.link_url && (
-                      <span className="spotlight-url">{stats.topClaimed.link_url}</span>
-                    )}
-                  </div>
-                </div>
-                <div className="spotlight-actions">
-                  {stats.topClaimed.link_url ? (
-                    <button
-                      className="spotlight-visit-btn"
-                      onClick={(e) => handleVisitWebsite(e, stats.topClaimed.link_url)}
-                      data-testid="top-sponsor-visit-btn"
-                    >
-                      VISIT WEBSITE ↗
-                    </button>
-                  ) : (
-                    <button
-                      className="spotlight-inspect-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (onInspectSpot) onInspectSpot(stats.topClaimed.id);
-                      }}
-                    >
-                      INSPECT ON BOARD ↗
-                    </button>
+        {stats.topClaimed ? (
+          <div
+            className="top-sponsor-spotlight"
+            onClick={() => handleCardClick(stats.topClaimed)}
+            style={{ cursor: "pointer" }}
+            data-testid="top-sponsor-spotlight"
+          >
+            <div className="spotlight-badge">👑 #1 RANKED SPONSOR SPOTLIGHT</div>
+            <div className="spotlight-content">
+              <SponsorLogoAvatar spot={stats.topClaimed} size="spotlight" />
+              <div className="spotlight-info">
+                <h2>{stats.topClaimed.handle}</h2>
+                <p>
+                  {stats.topClaimed.category} · Spot #{String(stats.topClaimed.id).padStart(2, "0")} (Tier: Prime #1)
+                </p>
+                <div className="spotlight-specs-row">
+                  <span className="spotlight-dim-badge">📏 {SPOT_DIMENSIONS.width} × {SPOT_DIMENSIONS.height} ({SPOT_DIMENSIONS.aspectRatio})</span>
+                  {stats.topClaimed.link_url && (
+                    <span className="spotlight-url">{stats.topClaimed.link_url}</span>
                   )}
                 </div>
               </div>
+              <div className="spotlight-actions">
+                {stats.topClaimed.link_url ? (
+                  <button
+                    className="spotlight-visit-btn"
+                    onClick={(e) => handleVisitWebsite(e, stats.topClaimed.link_url)}
+                    data-testid="top-sponsor-visit-btn"
+                  >
+                    VISIT WEBSITE ↗
+                  </button>
+                ) : (
+                  <button
+                    className="spotlight-inspect-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onInspectSpot) onInspectSpot(stats.topClaimed.id);
+                    }}
+                  >
+                    INSPECT ON BOARD ↗
+                  </button>
+                )}
+              </div>
             </div>
-          );
-        })() : (
+          </div>
+        ) : (
           <div
             className="top-sponsor-spotlight available-spotlight"
             onClick={() => onClaimSpot ? onClaimSpot(spots[0]) : null}
@@ -283,23 +306,7 @@ export default function SponsorsPage({ spots = [], onBackToBoard, onClaimSpot, o
                 {/* Spot Brand & Identity */}
                 <div className="sponsor-main">
                   {/* Brand Logo Avatar */}
-                  <div
-                    className="sponsor-logo-box"
-                    style={{
-                      borderColor: isClaimed ? (spot.color || "#00c48c") : "rgba(0, 217, 255, 0.25)",
-                      background: isClaimed ? `${(spot.color || "#00c48c")}22` : "#040a10",
-                    }}
-                  >
-                    {isClaimed && logoUrl ? (
-                      <img
-                        src={logoUrl}
-                        alt={spot.handle}
-                        className="sponsor-logo-img"
-                        onError={(e) => { e.target.style.display = "none"; }}
-                      />
-                    ) : null}
-                    <span className="sponsor-logo-icon">{getLinkIcon(spot.link_type)}</span>
-                  </div>
+                  <SponsorLogoAvatar spot={spot} size="standard" />
 
                   <div className="sponsor-details">
                     <div className="sponsor-header-line">
