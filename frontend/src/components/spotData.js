@@ -1,51 +1,48 @@
 // 20 physical spots on the billboard (5 columns x 4 rows).
-// Ordered strictly by amount descending: Spot 1 is highest amount ($125)
+// Ordered strictly by price descending: Spot 1 is highest ($125)
 const SPOT_PRICES = [
-  125, 100, 100,  85,  85,  // Row 1 (Top / Highest Tier: Spot 1 is #1 $125)
-   75,  75,  75,  65,  65,  // Row 2 (Upper Tier: $75–$65)
-   50,  50,  50,  40,  40,  // Row 3 (Mid Tier: $50–$40)
-   35,  35,  25,  25,  25,  // Row 4 (Base Tier: $35–$25)
+  125, 100, 100,  85,  85,  // Row 1 (Top / Highest Tier)
+   75,  75,  75,  65,  65,  // Row 2 (Upper Tier)
+   50,  50,  50,  40,  40,  // Row 3 (Mid Tier)
+   35,  35,  25,  25,  25,  // Row 4 (Base Tier)
 ];
 
-const DUMMY_SPONSORS = [
-  { handle: "@super_brand",  category: "AI Platform", color: "#ffd700", link_type: "website",   link_url: "https://superbrand.ai" },
-  { handle: "@quantum_flow", category: "SaaS",        color: "#00d9ff", link_type: "website",   link_url: "https://quantumflow.dev" },
-  { handle: "@hyper_studios",category: "Creative",    color: "#ff5b6a", link_type: "website",   link_url: "https://hyperstudios.design" },
-  { handle: "@cyber_pulse",  category: "DevTool",     color: "#2f7dff", link_type: "website",   link_url: "https://cyberpulse.io" },
-  { handle: "@solarpunk",    category: "Web3",        color: "#00c48c", link_type: "website",   link_url: "https://solarpunk.org" },
-  { handle: "@apex_gaming",  category: "Esports",     color: "#ff9c3a", link_type: "twitter",   link_url: "https://x.com/apexgaming" },
-  { handle: "@syntax_labs",  category: "AI Labs",     color: "#ac6bff", link_type: "website",   link_url: "https://syntaxlabs.ai" },
-  { handle: "@pixel_wave",   category: "Art",         color: "#ff6f47", link_type: "instagram", link_url: "https://instagram.com/pixelwave" },
-  { handle: "@vortex_audio", category: "Music",       color: "#69ffcc", link_type: "telegram",  link_url: "https://t.me/vortexaudio" },
-  { handle: "@prism_core",   category: "Tech",        color: "#e056fd", link_type: "website",   link_url: "https://prismcore.com" },
-  { handle: "@echo_media",   category: "Media",       color: "#f0932b", link_type: "website",   link_url: "https://echomedia.co" },
-  { handle: "@nova_agency",  category: "Agency",      color: "#00b894", link_type: "website",   link_url: "https://novaagency.io" },
-  { handle: "@glitch_sub",   category: "Culture",     color: "#e84393", link_type: "telegram",  link_url: "https://t.me/glitchsub" },
-  { handle: "@orbit_network",category: "Community",   color: "#0984e3", link_type: "twitter",   link_url: "https://x.com/orbitnet" },
-  { handle: "@alpha_forge",  category: "Crypto",      color: "#fdcb6e", link_type: "website",   link_url: "https://alphaforge.xyz" },
-  { handle: "@zenith_app",   category: "Mobile App",  color: "#6c5ce7", link_type: "website",   link_url: "https://zenithapp.io" },
-  { handle: "@pulse_beat",   category: "Sound",       color: "#d63031", link_type: "website",   link_url: "https://pulsebeat.fm" },
-  { handle: "@neon_district",category: "Metaverse",   color: "#00cec9", link_type: "website",   link_url: "https://neondistrict.city" },
-  { handle: "@byte_craft",   category: "Indie Dev",   color: "#badc58", link_type: "twitter",   link_url: "https://x.com/bytecraft" },
-  { handle: "@chrono_space", category: "SpaceTech",   color: "#74b9ff", link_type: "website",   link_url: "https://chronospace.io" },
+// Fixed color permanently assigned to each spot number (1–20).
+// This is the exact banner color the buyer will own — shown upfront so
+// they can pick the spot whose color matches their brand.
+const SPOT_COLORS = [
+  "#ffd700", // #01 — Gold
+  "#00d9ff", // #02 — Cyan
+  "#ff5b6a", // #03 — Coral Red
+  "#2f7dff", // #04 — Electric Blue
+  "#00c48c", // #05 — Emerald
+  "#ff9c3a", // #06 — Amber
+  "#ac6bff", // #07 — Violet
+  "#ff6f47", // #08 — Sunset Orange
+  "#69ffcc", // #09 — Mint
+  "#e056fd", // #10 — Magenta
+  "#f0932b", // #11 — Deep Amber
+  "#00b894", // #12 — Teal
+  "#e84393", // #13 — Hot Pink
+  "#0984e3", // #14 — Sky Blue
+  "#fdcb6e", // #15 — Warm Yellow
+  "#6c5ce7", // #16 — Purple
+  "#d63031", // #17 — Crimson
+  "#00cec9", // #18 — Aqua
+  "#badc58", // #19 — Lime
+  "#74b9ff", // #20 — Soft Blue
 ];
 
-export const SPOTS = Array.from({ length: 20 }, (_, i) => {
-  const id = i + 1;
-  const price = SPOT_PRICES[i] || 25;
-  const dummy = DUMMY_SPONSORS[i];
-
-  return {
-    id,
-    handle: dummy.handle,
-    category: dummy.category,
-    color: dummy.color,
-    link_type: dummy.link_type,
-    link_url: dummy.link_url,
-    claimed: true,
-    price,
-  };
-});
+export const SPOTS = Array.from({ length: 20 }, (_, i) => ({
+  id: i + 1,
+  color: SPOT_COLORS[i],
+  price: SPOT_PRICES[i] || 25,
+  claimed: false,
+  handle: null,
+  category: null,
+  link_type: null,
+  link_url: null,
+}));
 
 export const BILLBOARD_SCALE = 1.95;
 export const SPOT_DIMENSIONS = {
