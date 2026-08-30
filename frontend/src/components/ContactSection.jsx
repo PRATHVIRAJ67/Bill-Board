@@ -50,59 +50,29 @@ export default function ContactSection() {
 
             <div className="channel-links">
               <a
-                href="mailto:contact@theinternetsbillboard.com"
+                href="mailto:prathviholla67@gmail.com"
                 className="channel-item"
                 onClick={() => audioManager.playSelect()}
               >
                 <div className="channel-icon">✉️</div>
                 <div className="channel-info">
-                  <span className="channel-label">EMAIL</span>
-                  <span className="channel-value">support@theboard.com</span>
+                  <span className="channel-label">EMAIL & SUPPORT</span>
+                  <span className="channel-value">prathviholla67@gmail.com</span>
                 </div>
                 <span className="channel-arrow">↗</span>
               </a>
 
               <a
-                href="https://t.me/"
+                href="https://www.linkedin.com/in/prathviraj-holla-727a98256/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="channel-item"
                 onClick={() => audioManager.playSelect()}
               >
-                <div className="channel-icon">✈️</div>
+                <div className="channel-icon">🔗</div>
                 <div className="channel-info">
-                  <span className="channel-label">TELEGRAM</span>
-                  <span className="channel-value">@TheBoardAdmin</span>
-                </div>
-                <span className="channel-arrow">↗</span>
-              </a>
-
-              <a
-                href="https://x.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="channel-item"
-                onClick={() => audioManager.playSelect()}
-              >
-                <div className="channel-icon">𝕏</div>
-                <div className="channel-info">
-                  <span className="channel-label">TWITTER / X</span>
-                  <span className="channel-value">@TheBoardOfficial</span>
-                </div>
-                <span className="channel-arrow">↗</span>
-              </a>
-
-              <a
-                href="https://github.com/PRATHVIRAJ67/Bill-Board"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="channel-item"
-                onClick={() => audioManager.playSelect()}
-              >
-                <div className="channel-icon">🐙</div>
-                <div className="channel-info">
-                  <span className="channel-label">GITHUB REPO</span>
-                  <span className="channel-value">PRATHVIRAJ67/Bill-Board</span>
+                  <span className="channel-label">LINKEDIN</span>
+                  <span className="channel-value">prathviraj-holla</span>
                 </div>
                 <span className="channel-arrow">↗</span>
               </a>
@@ -144,7 +114,7 @@ export default function ContactSection() {
                     type="text"
                     name="name"
                     required
-                    placeholder="e.g. Alex Vance"
+                    placeholder="e.g. Prathviraj"
                     value={formData.name}
                     onChange={handleChange}
                   />
@@ -157,7 +127,7 @@ export default function ContactSection() {
                     type="email"
                     name="email"
                     required
-                    placeholder="alex@yourbrand.com"
+                    placeholder="prathviholla67@gmail.com"
                     value={formData.email}
                     onChange={handleChange}
                   />

@@ -34,7 +34,7 @@ class AmbientSoundEngine {
 
     this.isInitialized = false;
     this.isPlaying = false;
-    this.isMuted = false;
+    this.isMuted = true; // Strictly muted by default on initial page load
 
     // Refined volumes (Light, pleasant, atmospheric)
     this.TARGET_MASTER = 0.28;
@@ -48,12 +48,18 @@ class AmbientSoundEngine {
   }
 
   /**
-   * Initializes AudioContext on user interaction
+   * Initializes AudioContext (stays muted unless startUnmuted is true)
    */
-  async init() {
+  async init(startUnmuted = false) {
     if (this.isInitialized && this.ctx) {
       if (this.ctx.state === "suspended") {
         await this.ctx.resume();
+      }
+      if (startUnmuted && this.isMuted) {
+        this.isMuted = false;
+        if (this.masterGain) {
+          this.masterGain.gain.linearRampToValueAtTime(this.TARGET_MASTER, this.ctx.currentTime + 0.3);
+        }
       }
       return true;
     }
@@ -76,8 +82,8 @@ class AmbientSoundEngine {
       this.limiter.release.setValueAtTime(0.12, this.ctx.currentTime);
 
       this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
-      this.masterGain.gain.linearRampToValueAtTime(this.TARGET_MASTER, this.ctx.currentTime + 0.4);
+      const initialGain = startUnmuted ? this.TARGET_MASTER : 0.0001;
+      this.masterGain.gain.setValueAtTime(initialGain, this.ctx.currentTime);
 
       this.sfxGain = this.ctx.createGain();
       this.sfxGain.gain.setValueAtTime(this.TARGET_SFX, this.ctx.currentTime);
@@ -93,9 +99,9 @@ class AmbientSoundEngine {
 
       this.isInitialized = true;
       this.isPlaying = true;
-      this.isMuted = false;
+      this.isMuted = !startUnmuted;
 
-      console.log("[AudioEngine] Chill Ambient Soundscape initialized (AudioContext:", this.ctx.state, ")");
+      console.log("[AudioEngine] Sound engine initialized (Muted:", this.isMuted, ")");
       return true;
     } catch (e) {
       console.warn("[AudioEngine] AudioContext init error:", e);
@@ -359,7 +365,7 @@ class AmbientSoundEngine {
    */
   toggleMute() {
     if (!this.isInitialized) {
-      this.init();
+      this.init(true);
       return true;
     }
 

@@ -56,30 +56,6 @@ export default function App() {
   const [claimModalSpot, setClaimModalSpot] = useState(null);
   const { isMobile, isPortrait } = useScreenState();
 
-  // Global listener to unlock & resume AudioContext on first tap/click
-  useEffect(() => {
-    const handleFirstInteraction = () => {
-      audioManager.init().then((success) => {
-        if (success) {
-          setSoundActive(true);
-        }
-      });
-      window.removeEventListener("click", handleFirstInteraction);
-      window.removeEventListener("touchstart", handleFirstInteraction);
-      window.removeEventListener("keydown", handleFirstInteraction);
-    };
-
-    window.addEventListener("click", handleFirstInteraction);
-    window.addEventListener("touchstart", handleFirstInteraction);
-    window.addEventListener("keydown", handleFirstInteraction);
-
-    return () => {
-      window.removeEventListener("click", handleFirstInteraction);
-      window.removeEventListener("touchstart", handleFirstInteraction);
-      window.removeEventListener("keydown", handleFirstInteraction);
-    };
-  }, []);
-
   const handleToggleSound = (e) => {
     e?.stopPropagation();
     const active = audioManager.toggleMute();
