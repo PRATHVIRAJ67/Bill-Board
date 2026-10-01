@@ -44,7 +44,6 @@ export const SPOTS = Array.from({ length: 20 }, (_, i) => ({
   link_url: null,
 }));
 
-export const BILLBOARD_SCALE = 1.95;
 export const SPOT_DIMENSIONS = {
   width: "3.6m",
   height: "1.9m",
@@ -89,13 +88,4 @@ export function getSpotLogoUrl(spot) {
     }
   }
   return null;
-}
-
-export function panelWorldPosition(index) {
-  const col = index % GRID.cols;
-  const row = Math.floor(index / GRID.cols);
-  const x = BILLBOARD_SCALE * (GRID.originX + col * GRID.colStep);
-  const y = BILLBOARD_SCALE * (GRID.panelsY + GRID.originY - row * GRID.rowStep);
-  const z = GRID.billboardZ + BILLBOARD_SCALE * GRID.panelsZ;
-  return [x, y, z];
 }

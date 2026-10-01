@@ -1,9 +1,4 @@
-import { Canvas } from "@react-three/fiber";
-import { Suspense, useEffect, useMemo, useState } from "react";
-import { Preload } from "@react-three/drei";
-import * as THREE from "three";
-import HeroScene from "@/components/HeroScene";
-import LiveActivity from "@/components/LiveActivity";
+import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ClaimSpotModal from "@/components/ClaimSpotModal";
 import SponsorsPage from "./components/SponsorsPage";
 import FaqSection from "./components/FaqSection";
@@ -14,35 +9,90 @@ import { fetchLiveSpots } from "@/lib/api";
 import { audioManager } from "@/lib/audioManager";
 import "@/App.css";
 
+// three.js + the scene ship in their own chunk; the shell paints immediately.
+const HeroCanvas = lazy(() => import("@/components/HeroCanvas"));
+
+/** If WebGL or the 3D chunk fails, keep the page fully usable over a static backdrop. */
+class SceneBoundary extends Component {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error) {
+    console.error("[THE BOARD] 3D scene unavailable:", error);
+    this.props.onFail?.();
+  }
+  render() {
+    return this.state.failed ? <div className="scene-fallback" aria-hidden="true" /> : this.props.children;
+  }
+}
+
+function readScreen() {
+  if (typeof window === "undefined") return { isMobile: false, isPortrait: true };
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  return { isMobile: w <= 860 || (h <= 500 && w <= 1000), isPortrait: h >= w };
+}
 
 function useScreenState() {
-  const [state, setState] = useState(() => {
-    if (typeof window === "undefined") return { isMobile: false, isPortrait: true };
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    const isMobile = w <= 860 || (h <= 500 && w <= 1000);
-    const isPortrait = h >= w;
-    return { isMobile, isPortrait };
-  });
-
+  const [state, setState] = useState(readScreen);
   useEffect(() => {
+    let raf = 0;
     const handleCheck = () => {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      const isMobile = w <= 860 || (h <= 500 && w <= 1000);
-      const isPortrait = h >= w;
-      setState({ isMobile, isPortrait });
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const next = readScreen();
+        setState((prev) => (prev.isMobile === next.isMobile && prev.isPortrait === next.isPortrait ? prev : next));
+      });
     };
-    window.addEventListener("resize", handleCheck);
+    window.addEventListener("resize", handleCheck, { passive: true });
     window.addEventListener("orientationchange", handleCheck);
     return () => {
+      cancelAnimationFrame(raf);
       window.removeEventListener("resize", handleCheck);
       window.removeEventListener("orientationchange", handleCheck);
     };
   }, []);
-
   return state;
 }
+
+function useReducedMotion() {
+  const [reduced, setReduced] = useState(() => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
+  useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!mq) return;
+    const on = (e) => setReduced(e.matches);
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  }, []);
+  return reduced;
+}
+
+/** Pause the WebGL loop when the hero is scrolled away or the tab is hidden. */
+function useHeroActive(ref) {
+  const [inView, setInView] = useState(true);
+  const [visible, setVisible] = useState(() => document.visibilityState !== "hidden");
+  useEffect(() => {
+    const onVis = () => setVisible(document.visibilityState !== "hidden");
+    document.addEventListener("visibilitychange", onVis);
+    const el = ref.current;
+    let io;
+    if (el && "IntersectionObserver" in window) {
+      io = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), { threshold: 0.02 });
+      io.observe(el);
+    }
+    return () => {
+      io?.disconnect();
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [ref]);
+  return inView && visible;
+}
+
+const spotsSignature = (list) =>
+  list
+    .map((s) => `${s.id}|${s.claimed ? 1 : 0}|${s.handle || ""}|${s.category || ""}|${s.link_url || ""}|${s.link_type || ""}|${s.color}|${s.price}`)
+    .join(";");
 
 export default function App() {
   const [currentView, setCurrentView] = useState("board"); // 'board' | 'sponsors'
@@ -57,6 +107,12 @@ export default function App() {
   const [claimModalSpot, setClaimModalSpot] = useState(null);
   const [policyModalKey, setPolicyModalKey] = useState(null);
   const { isMobile, isPortrait } = useScreenState();
+  const reducedMotion = useReducedMotion();
+  const heroRef = useRef(null);
+  const heroActive = useHeroActive(heroRef);
+  const [sceneReady, setSceneReady] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
+  const handleSceneReady = useCallback(() => setSceneReady(true), []);
 
   const handleToggleSound = (e) => {
     e?.stopPropagation();
@@ -64,26 +120,33 @@ export default function App() {
     setSoundActive(active);
   };
 
-  // Load dynamic spots from backend API & poll periodically
+  // Load live spots; poll while the tab is visible and only commit real changes
+  // (an unchanged poll must not re-render the scene or redraw the LED atlas).
   useEffect(() => {
+    let alive = true;
     const loadSpots = () => {
+      if (document.visibilityState === "hidden") return;
       fetchLiveSpots().then((data) => {
-        if (data && Array.isArray(data) && data.length > 0) {
-          const merged = SPOTS.map((defaultSpot) => {
-            const dbSpot = data.find((s) => s.id === defaultSpot.id);
-            if (dbSpot && dbSpot.claimed && dbSpot.handle && dbSpot.handle !== "AVAILABLE") {
-              return { ...defaultSpot, ...dbSpot };
-            }
-            return defaultSpot;
-          });
-          setSpotsList(merged);
-        }
+        if (!alive || !Array.isArray(data) || data.length === 0) return;
+        const merged = SPOTS.map((defaultSpot) => {
+          const dbSpot = data.find((s) => s.id === defaultSpot.id);
+          if (dbSpot && dbSpot.claimed && dbSpot.handle && dbSpot.handle !== "AVAILABLE") {
+            return { ...defaultSpot, ...dbSpot };
+          }
+          return defaultSpot;
+        });
+        setSpotsList((prev) => (spotsSignature(prev) === spotsSignature(merged) ? prev : merged));
       });
     };
 
     loadSpots();
-    const timer = setInterval(loadSpots, 5000);
-    return () => clearInterval(timer);
+    const timer = setInterval(loadSpots, 8000);
+    document.addEventListener("visibilitychange", loadSpots);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", loadSpots);
+    };
   }, []);
 
   const stats = useMemo(() => {
@@ -96,12 +159,6 @@ export default function App() {
 
   const hoveredSpot = hoveredId != null ? spotsList.find((s) => s.id === hoveredId) : null;
   const selectedSpot = selectedId != null ? spotsList.find((s) => s.id === selectedId) : null;
-
-  const cameraConfig = isMobile
-    ? isPortrait
-      ? { position: [0, 2.0, 10.2], fov: 65, near: 0.1, far: 250 }
-      : { position: [0, 1.4, 5.6], fov: 56, near: 0.1, far: 250 }
-    : { position: [0, 1.85, 7.8], fov: 68, near: 0.1, far: 250 };
 
   const handleZoom = () => {
     audioManager.playAction();
@@ -120,15 +177,18 @@ export default function App() {
     setSelectedId(null);
   };
 
-  const handleSelect = (id) => {
-    const spot = spotsList.find((s) => s.id === id);
+  const spotsRef = useRef(spotsList);
+  spotsRef.current = spotsList;
+  const handleSelect = useCallback((id) => {
+    const spot = spotsRef.current.find((s) => s.id === id);
     setSelectedId(id);
+    setHoveredId(null);
     if (spot && !spot.claimed) {
       setClaimModalSpot(spot);
     } else {
       setCameraMode("cinematic");
     }
-  };
+  }, []);
 
   const handleOpenClaimFirstAvailable = () => {
     audioManager.playAction();
@@ -197,32 +257,35 @@ export default function App() {
   return (
     <main className={`board-app app ${isMobile ? "is-mobile" : ""} ${isPortrait ? "is-portrait" : "is-landscape"}`} data-testid="main-app">
       {/* SECTION 1: 3D BILLBOARD HERO VIEWPORT */}
-      <section id="board" className="hero-viewport-section" data-testid="board-section">
-        <div className="canvas-wrapper">
-          <Canvas
-            dpr={[1, 2]}
-            gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.28 }}
-            shadows={!isMobile}
-            camera={cameraConfig}
-          >
-            <color attach="background" args={["#03060b"]} />
-            <fog attach="fog" args={["#081420", 28, isMobile ? 110 : 125]} />
-            <Suspense fallback={null}>
-              <HeroScene
-                cameraMode={cameraMode}
-                isMobile={isMobile}
-                isPortrait={isPortrait}
-                zoomStep={zoomStep}
-                hoveredId={hoveredId}
-                selectedId={selectedId}
-                onHover={setHoveredId}
-                onSelect={handleSelect}
-                resetTick={resetTick}
-                spots={spotsList}
-              />
-              <Preload all />
-            </Suspense>
-          </Canvas>
+      <section id="board" ref={heroRef} className="hero-viewport-section" data-testid="board-section">
+        <div className={`canvas-wrapper ${sceneReady ? "is-ready" : ""}`}>
+          <SceneBoundary onFail={handleSceneReady}>
+          <Suspense fallback={null}>
+            <HeroCanvas
+              active={heroActive}
+              onProgress={setLoadProgress}
+              onReady={handleSceneReady}
+              ready={sceneReady}
+              cameraMode={cameraMode}
+              zoomStep={zoomStep}
+              hoveredId={hoveredId}
+              selectedId={selectedId}
+              onHover={setHoveredId}
+              onSelect={handleSelect}
+              resetTick={resetTick}
+              spots={spotsList}
+              reducedMotion={reducedMotion}
+            />
+          </Suspense>
+          </SceneBoundary>
+        </div>
+
+        <div className={`scene-loader ${sceneReady ? "is-done" : ""}`} aria-hidden={sceneReady} data-testid="scene-loader">
+          <div className="scene-loader-inner">
+            <span className="scene-loader-mark">THE BOARD <i>•</i></span>
+            <span className="scene-loader-bar"><span style={{ transform: `scaleX(${Math.max(0.06, loadProgress / 100)})` }} /></span>
+            <span className="scene-loader-label">{loadProgress < 100 ? `LOADING SCENE ${Math.round(loadProgress)}%` : "PREPARING LIGHTING"}</span>
+          </div>
         </div>
 
         <div className="hud" data-testid="experience-hud">
@@ -272,7 +335,7 @@ export default function App() {
               </button>
             </nav>
             <div className="live-readout" data-testid="live-status">
-              <i /> LIVE <strong>{stats.claimed} / {stats.total}</strong> CLAIMED
+              <i /> LIVE <strong>{stats.claimed} / {stats.total}</strong> <span className="live-claimed">CLAIMED</span>
             </div>
             <button
               className={`sound-toggle ${soundActive ? "active" : ""}`}
@@ -284,7 +347,7 @@ export default function App() {
               <div className={`sound-eq-bars ${soundActive ? "active" : ""}`}>
                 <span /><span /><span />
               </div>
-              {soundActive ? "AMBIENT ON" : "AUDIO OFF"}
+              <span className="sound-label">{soundActive ? "AMBIENT ON" : "AUDIO OFF"}</span>
             </button>
             <button
               className={`menu-button ${mobileMenuOpen ? "open" : ""}`}
@@ -432,7 +495,6 @@ export default function App() {
             </div>
           )}
 
-          {!isMobile && <LiveActivity onFocusSpot={setSelectedId} />}
 
           <div className="scene-note" data-testid="scene-note">
             <span className="pulse-dot" /> LIVE SCENE
@@ -462,7 +524,7 @@ export default function App() {
               className={cameraMode === "sweep" && selectedId == null ? "selected" : ""}
               onClick={() => { setCameraMode("sweep"); setSelectedId(null); }}
               data-testid="sweep-control"
-            >{isMobile ? "SWEEP 360°" : "360° SWEEP ✈️"}</button>
+            >{isMobile ? "FLYBY" : "FLYBY ✈"}</button>
             <button onClick={handleZoom} data-testid="zoom-control">
               ZOOM {zoomStep > 0 ? `x${zoomStep + 1}` : "⊕"}
             </button>
